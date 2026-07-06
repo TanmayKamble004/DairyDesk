@@ -48,8 +48,12 @@ INSTALLED_APPS = [
     "rest_framework",
     "corsheaders",
     # Local
+    "core",
     "health",
 ]
+
+# Custom user model (must be set before core's first migration).
+AUTH_USER_MODEL = "core.User"
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
