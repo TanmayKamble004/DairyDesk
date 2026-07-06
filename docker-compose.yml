@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16
+    container_name: dairydesk_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-dairydesk}
+      POSTGRES_USER: ${POSTGRES_USER:-dairydesk}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dairydesk}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - dairydesk_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dairydesk} -d ${POSTGRES_DB:-dairydesk}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  dairydesk_pgdata:

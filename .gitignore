@@ -1,0 +1,35 @@
+# ---- Env / secrets ----
+.env
+*.env
+!.env.example
+
+# ---- Python / Django ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+*.sqlite3
+db.sqlite3
+staticfiles/
+media/
+
+# ---- Node / frontend ----
+node_modules/
+dist/
+build/
+.vite/
+*.local
+
+# ---- Postgres data (if ever bind-mounted locally) ----
+pgdata/
+postgres-data/
+
+# ---- Editor / OS / tooling ----
+.vscode/
+.idea/
+.claude/settings.local.json
+.DS_Store
+Thumbs.db
+*.log
