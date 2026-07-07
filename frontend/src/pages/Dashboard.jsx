@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, apiErrorMessage } from '../api/client'
 import { Card, ErrorAlert, PageHeader, Spinner } from '../components/ui'
+import InventoryShelf from '../components/InventoryShelf'
 
 const formatINR = (value) =>
   `₹${Number(value).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
@@ -41,21 +42,6 @@ function KpiTiles({ kpis }) {
   )
 }
 
-// Phase 4 will replace this with the react-three-fiber <Canvas> shelf.
-function ShelfPlaceholder() {
-  return (
-    <Card className="flex h-80 items-center justify-center border-2 border-dashed border-slate-300 bg-slate-100/50 shadow-none">
-      <div className="text-center">
-        <div className="text-4xl">📦</div>
-        <div className="mt-2 font-medium text-slate-500">3D inventory shelf — Phase 4</div>
-        <div className="mt-1 text-sm text-slate-400">
-          The interactive react-three-fiber shelf will render here.
-        </div>
-      </div>
-    </Card>
-  )
-}
-
 export default function Dashboard() {
   const [kpis, setKpis] = useState(null)
   const [error, setError] = useState('')
@@ -67,17 +53,16 @@ export default function Dashboard() {
       .catch((err) => setError(apiErrorMessage(err)))
   }, [])
 
+  // KPIs and the shelf fetch independently, so one failing never hides the other.
   return (
     <div>
       <PageHeader title="Dashboard" />
-      {error && <ErrorAlert message={error} />}
-      {!error && !kpis && <Spinner />}
-      {kpis && (
-        <div className="space-y-6">
-          <KpiTiles kpis={kpis} />
-          <ShelfPlaceholder />
-        </div>
-      )}
+      <div className="space-y-6">
+        {error && <ErrorAlert message={error} />}
+        {!error && !kpis && <Spinner />}
+        {kpis && <KpiTiles kpis={kpis} />}
+        <InventoryShelf />
+      </div>
     </div>
   )
 }
