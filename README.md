@@ -32,7 +32,7 @@ This is a private repo — make sure you've been added as a collaborator and are
 in to Git (a browser popup will prompt you, or run `gh auth login`).
 
 ```bash
-git clone https://github.com/TanmayK004/DairyDesk.git
+git clone https://github.com/TanmayKamble004/DairyDesk.git
 cd DairyDesk
 ```
 
