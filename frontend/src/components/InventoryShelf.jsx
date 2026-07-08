@@ -79,10 +79,11 @@ function CrateStack({ product, x, unitsPerCrate, isSelected, onSelect }) {
           />
         </RoundedBox>
       ))}
+      {/* No distanceFactor: labels keep a constant screen size instead of
+          shrinking once the camera-distance scale kicks in on first drag. */}
       <Html
         position={[0, topY + 0.55, 0]}
         center
-        distanceFactor={8.5}
         zIndexRange={[20, 0]}
         style={{ pointerEvents: 'none' }}
       >
