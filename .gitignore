@@ -33,3 +33,9 @@ postgres-data/
 .DS_Store
 Thumbs.db
 *.log
+
+# ---- Docs ----
+~$*.docx
+*.backup.docx
+.$*.bkp
+.$*.dtmp

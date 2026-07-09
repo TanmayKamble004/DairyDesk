@@ -1,0 +1,550 @@
+<mxfile host="Electron" agent="Claude Code" pages="6">
+  <diagram id="fig-3-1-er" name="Fig 3.1 ER Diagram">
+    <mxGraphModel dx="1130" dy="988" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="826" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="user" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=26;horizontalStack=0;resizeParent=1;resizeParentMax=0;collapsible=0;rounded=1;fillColor=#F694C1;strokeColor=#AF45ED;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="User" vertex="1">
+          <mxGeometry height="106" width="190" x="40" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="user_a1" parent="user" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;fontStyle=4;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="user_id (PK)" vertex="1">
+          <mxGeometry height="20" width="190" y="26" as="geometry" />
+        </mxCell>
+        <mxCell id="user_a2" parent="user" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="username" vertex="1">
+          <mxGeometry height="20" width="190" y="46" as="geometry" />
+        </mxCell>
+        <mxCell id="user_a3" parent="user" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="password (hashed)" vertex="1">
+          <mxGeometry height="20" width="190" y="66" as="geometry" />
+        </mxCell>
+        <mxCell id="user_a4" parent="user" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="role (owner / staff)" vertex="1">
+          <mxGeometry height="20" width="190" y="86" as="geometry" />
+        </mxCell>
+        <mxCell id="product" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=26;horizontalStack=0;resizeParent=1;resizeParentMax=0;collapsible=0;rounded=1;fillColor=#F694C1;strokeColor=#AF45ED;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Product" vertex="1">
+          <mxGeometry height="126" width="190" x="620" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="product_a1" parent="product" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;fontStyle=4;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="product_id (PK)" vertex="1">
+          <mxGeometry height="20" width="190" y="26" as="geometry" />
+        </mxCell>
+        <mxCell id="product_a2" parent="product" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="name" vertex="1">
+          <mxGeometry height="20" width="190" y="46" as="geometry" />
+        </mxCell>
+        <mxCell id="product_a3" parent="product" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="category" vertex="1">
+          <mxGeometry height="20" width="190" y="66" as="geometry" />
+        </mxCell>
+        <mxCell id="product_a4" parent="product" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="unit (litre / kg / piece)" vertex="1">
+          <mxGeometry height="20" width="190" y="86" as="geometry" />
+        </mxCell>
+        <mxCell id="product_a5" parent="product" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="selling_price" vertex="1">
+          <mxGeometry height="20" width="190" y="106" as="geometry" />
+        </mxCell>
+        <mxCell id="batch" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=26;horizontalStack=0;resizeParent=1;resizeParentMax=0;collapsible=0;rounded=1;fillColor=#F694C1;strokeColor=#AF45ED;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="StockBatch" vertex="1">
+          <mxGeometry height="146" width="200" x="920" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="batch_a1" parent="batch" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;fontStyle=4;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="batch_id (PK)" vertex="1">
+          <mxGeometry height="20" width="200" y="26" as="geometry" />
+        </mxCell>
+        <mxCell id="batch_a2" parent="batch" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="product_id (FK)" vertex="1">
+          <mxGeometry height="20" width="200" y="46" as="geometry" />
+        </mxCell>
+        <mxCell id="batch_a3" parent="batch" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="quantity" vertex="1">
+          <mxGeometry height="20" width="200" y="66" as="geometry" />
+        </mxCell>
+        <mxCell id="batch_a4" parent="batch" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="purchase_price" vertex="1">
+          <mxGeometry height="20" width="200" y="86" as="geometry" />
+        </mxCell>
+        <mxCell id="batch_a5" parent="batch" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="expiry_date" vertex="1">
+          <mxGeometry height="20" width="200" y="106" as="geometry" />
+        </mxCell>
+        <mxCell id="batch_a6" parent="batch" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="received_date" vertex="1">
+          <mxGeometry height="20" width="200" y="126" as="geometry" />
+        </mxCell>
+        <mxCell id="customer" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=26;horizontalStack=0;resizeParent=1;resizeParentMax=0;collapsible=0;rounded=1;fillColor=#F694C1;strokeColor=#AF45ED;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Customer" vertex="1">
+          <mxGeometry height="106" width="190" x="40" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="customer_a1" parent="customer" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;fontStyle=4;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="customer_id (PK)" vertex="1">
+          <mxGeometry height="20" width="190" y="26" as="geometry" />
+        </mxCell>
+        <mxCell id="customer_a2" parent="customer" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="name" vertex="1">
+          <mxGeometry height="20" width="190" y="46" as="geometry" />
+        </mxCell>
+        <mxCell id="customer_a3" parent="customer" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="phone" vertex="1">
+          <mxGeometry height="20" width="190" y="66" as="geometry" />
+        </mxCell>
+        <mxCell id="customer_a4" parent="customer" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="address" vertex="1">
+          <mxGeometry height="20" width="190" y="86" as="geometry" />
+        </mxCell>
+        <mxCell id="order" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=26;horizontalStack=0;resizeParent=1;resizeParentMax=0;collapsible=0;rounded=1;fillColor=#F694C1;strokeColor=#AF45ED;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Order" vertex="1">
+          <mxGeometry height="106" width="200" x="340" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="order_a1" parent="order" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;fontStyle=4;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="order_id (PK)" vertex="1">
+          <mxGeometry height="20" width="200" y="26" as="geometry" />
+        </mxCell>
+        <mxCell id="order_a2" parent="order" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="customer_id (FK)" vertex="1">
+          <mxGeometry height="20" width="200" y="46" as="geometry" />
+        </mxCell>
+        <mxCell id="order_a3" parent="order" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="status (pending / processed / delivered)" vertex="1">
+          <mxGeometry height="20" width="200" y="66" as="geometry" />
+        </mxCell>
+        <mxCell id="order_a4" parent="order" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="created_at" vertex="1">
+          <mxGeometry height="20" width="200" y="86" as="geometry" />
+        </mxCell>
+        <mxCell id="orderitem" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=26;horizontalStack=0;resizeParent=1;resizeParentMax=0;collapsible=0;rounded=1;fillColor=#F694C1;strokeColor=#AF45ED;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="OrderItem" vertex="1">
+          <mxGeometry height="126" width="200" x="650" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="orderitem_a1" parent="orderitem" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;fontStyle=4;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="order_item_id (PK)" vertex="1">
+          <mxGeometry height="20" width="200" y="26" as="geometry" />
+        </mxCell>
+        <mxCell id="orderitem_a2" parent="orderitem" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="order_id (FK)" vertex="1">
+          <mxGeometry height="20" width="200" y="46" as="geometry" />
+        </mxCell>
+        <mxCell id="orderitem_a3" parent="orderitem" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="product_id (FK)" vertex="1">
+          <mxGeometry height="20" width="200" y="66" as="geometry" />
+        </mxCell>
+        <mxCell id="orderitem_a4" parent="orderitem" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="quantity" vertex="1">
+          <mxGeometry height="20" width="200" y="86" as="geometry" />
+        </mxCell>
+        <mxCell id="orderitem_a5" parent="orderitem" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="unit_price (snapshot)" vertex="1">
+          <mxGeometry height="20" width="200" y="106" as="geometry" />
+        </mxCell>
+        <mxCell id="invoice" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=26;horizontalStack=0;resizeParent=1;resizeParentMax=0;collapsible=0;rounded=1;fillColor=#F694C1;strokeColor=#AF45ED;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Invoice" vertex="1">
+          <mxGeometry height="126" width="200" x="340" y="580" as="geometry" />
+        </mxCell>
+        <mxCell id="invoice_a1" parent="invoice" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;fontStyle=4;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="invoice_id (PK)" vertex="1">
+          <mxGeometry height="20" width="200" y="26" as="geometry" />
+        </mxCell>
+        <mxCell id="invoice_a2" parent="invoice" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="order_id (FK, one-to-one)" vertex="1">
+          <mxGeometry height="20" width="200" y="46" as="geometry" />
+        </mxCell>
+        <mxCell id="invoice_a3" parent="invoice" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="total_amount" vertex="1">
+          <mxGeometry height="20" width="200" y="66" as="geometry" />
+        </mxCell>
+        <mxCell id="invoice_a4" parent="invoice" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="paid_amount" vertex="1">
+          <mxGeometry height="20" width="200" y="86" as="geometry" />
+        </mxCell>
+        <mxCell id="invoice_a5" parent="invoice" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="status (unpaid / partial / paid)" vertex="1">
+          <mxGeometry height="20" width="200" y="106" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" edge="1" parent="1" source="customer" style="edgeStyle=entityRelationEdgeStyle;fontSize=11;html=1;startArrow=ERone;startFill=0;endArrow=ERmany;endFill=0;rounded=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="order" value="places">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" edge="1" parent="1" source="order" style="edgeStyle=entityRelationEdgeStyle;fontSize=11;html=1;startArrow=ERone;startFill=0;endArrow=ERmany;endFill=0;rounded=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="orderitem" value="contains">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" edge="1" parent="1" source="product" style="edgeStyle=entityRelationEdgeStyle;fontSize=11;html=1;startArrow=ERone;startFill=0;endArrow=ERmany;endFill=0;rounded=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="orderitem" value="appears in">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" edge="1" parent="1" source="product" style="edgeStyle=entityRelationEdgeStyle;fontSize=11;html=1;startArrow=ERone;startFill=0;endArrow=ERmany;endFill=0;rounded=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="batch" value="stocked as">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" edge="1" parent="1" source="order" style="edgeStyle=entityRelationEdgeStyle;fontSize=11;html=1;startArrow=ERone;startFill=0;endArrow=ERone;endFill=0;rounded=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="invoice" value="billed by">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ernote" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontStyle=2;sketch=1;curveFitting=1;jiggle=2;rounded=1;labelBackgroundColor=none;fontColor=#095C86;" value="User is a standalone login entity (role-based access); it is not linked to transactional records in this version." vertex="1">
+          <mxGeometry height="40" width="360" x="40" y="190" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="fig-3-2-dfd0" name="Fig 3.2 DFD Level 0">
+    <mxGraphModel dx="1043" dy="912" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="826" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="sys" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;fontStyle=1;fontSize=14;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="0&#xa;Dairy Business&#xa;Management System" vertex="1">
+          <mxGeometry height="140" width="300" x="440" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="staff" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;fontStyle=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Staff" vertex="1">
+          <mxGeometry height="60" width="140" x="100" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="owner" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;fontStyle=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Owner" vertex="1">
+          <mxGeometry height="60" width="140" x="100" y="520" as="geometry" />
+        </mxCell>
+        <mxCell id="cust" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;fontStyle=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Customer" vertex="1">
+          <mxGeometry height="60" width="140" x="940" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="db" parent="1" style="shape=partialRectangle;whiteSpace=wrap;html=1;left=0;right=0;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="D1 | DairyDesk Database (PostgreSQL)" vertex="1">
+          <mxGeometry height="50" width="240" x="470" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="f1" edge="1" parent="1" source="staff" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=1;exitY=0.5;entryX=0.25;entryY=0;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="sys" value="stock entries, orders, payments">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f2" edge="1" parent="1" source="sys" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=0.1;exitY=0.25;entryX=0.5;entryY=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="staff" value="stock levels, expiry alerts, order status">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f3" edge="1" parent="1" source="owner" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=1;exitY=0.5;entryX=0.25;entryY=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="sys" value="report / dashboard requests">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f4" edge="1" parent="1" source="sys" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=0.1;exitY=0.75;entryX=0.5;entryY=0;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="owner" value="KPIs, 3D inventory view, invoices">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f5" edge="1" parent="1" source="cust" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=0;exitY=0.25;entryX=0.9;entryY=0.25;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="sys" value="order requests">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f6" edge="1" parent="1" source="sys" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=0.9;exitY=0.75;entryX=0;entryY=0.75;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="cust" value="delivered goods, invoice">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f7" edge="1" parent="1" source="sys" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;startArrow=classic;startFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="db" value="read / write">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="fig-3-3-dfd1" name="Fig 3.3 DFD Level 1">
+    <mxGraphModel dx="1130" dy="988" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="826" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="staff" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;fontStyle=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Staff" vertex="1">
+          <mxGeometry height="60" width="130" x="40" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="owner" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;fontStyle=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Owner" vertex="1">
+          <mxGeometry height="60" width="130" x="990" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="p1" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="1.0&#xa;Login and&#xa;Access Control" vertex="1">
+          <mxGeometry height="90" width="200" x="280" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="p2" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="2.0&#xa;Product and&#xa;Stock Management" vertex="1">
+          <mxGeometry height="90" width="200" x="280" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="p3" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="3.0&#xa;Customer and&#xa;Order Management" vertex="1">
+          <mxGeometry height="90" width="200" x="280" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="p4" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="4.0&#xa;Billing and&#xa;Payments" vertex="1">
+          <mxGeometry height="90" width="200" x="640" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="p5" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="5.0&#xa;Dashboard and&#xa;Reporting" vertex="1">
+          <mxGeometry height="90" width="200" x="640" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="d1" parent="1" style="shape=partialRectangle;whiteSpace=wrap;html=1;left=0;right=0;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="D1 | Users" vertex="1">
+          <mxGeometry height="40" width="200" x="60" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="d2" parent="1" style="shape=partialRectangle;whiteSpace=wrap;html=1;left=0;right=0;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="D2 | Products and Stock Batches" vertex="1">
+          <mxGeometry height="40" width="200" x="300" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="d3" parent="1" style="shape=partialRectangle;whiteSpace=wrap;html=1;left=0;right=0;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="D3 | Customers and Orders" vertex="1">
+          <mxGeometry height="40" width="200" x="540" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="d4" parent="1" style="shape=partialRectangle;whiteSpace=wrap;html=1;left=0;right=0;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="D4 | Invoices" vertex="1">
+          <mxGeometry height="40" width="200" x="780" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="g1" edge="1" parent="1" source="staff" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=0.5;exitY=0;entryX=0;entryY=0.5;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="p1" value="credentials">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="g2" edge="1" parent="1" source="p1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;startArrow=classic;startFill=1;exitX=0.15;exitY=0.85;entryX=0.5;entryY=0;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="d1" value="verify user, role">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="g3" edge="1" parent="1" source="staff" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=1;exitY=0.25;entryX=0;entryY=0.5;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="p2" value="stock batch entries">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="g4" edge="1" parent="1" source="p2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;startArrow=classic;startFill=1;exitX=0.35;exitY=0.9;entryX=0.5;entryY=0;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="d2" value="store / deduct stock (FIFO)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="g5" edge="1" parent="1" source="staff" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=1;exitY=0.75;entryX=0;entryY=0.5;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="p3" value="customer and order details">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="g6" edge="1" parent="1" source="p3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;startArrow=classic;startFill=1;exitX=0.75;exitY=0.9;entryX=0.25;entryY=0;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="d3" value="save orders, status">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="g7" edge="1" parent="1" source="p3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=0.5;exitY=0;entryX=0.5;entryY=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="p2" value="stock deduction request">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="g8" edge="1" parent="1" source="p3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="p4" value="delivered order">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="g9" edge="1" parent="1" source="p4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;startArrow=classic;startFill=1;exitX=0.75;exitY=0.9;entryX=0.5;entryY=0;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="d4" value="invoice, payments">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="g10" edge="1" parent="1" source="p4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=0.5;exitY=0;entryX=0.5;entryY=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="p5" value="aggregated stock, sales, dues">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="g11" edge="1" parent="1" source="p5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=1;exitY=0.35;entryX=0;entryY=0.5;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="owner" value="KPIs, 3D shelf, reports">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="g12" edge="1" parent="1" source="p2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.75;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="p5" value="inventory summary">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="fig-3-4-dfd2" name="Fig 3.4 DFD Level 2">
+    <mxGraphModel dx="1130" dy="988" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="826" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="staff" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;fontStyle=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Staff" vertex="1">
+          <mxGeometry height="60" width="120" x="40" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="owner" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;fontStyle=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Owner" vertex="1">
+          <mxGeometry height="60" width="120" x="1000" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="q1" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="2.1&#xa;Add Stock&#xa;Batch" vertex="1">
+          <mxGeometry height="80" width="170" x="220" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="q2" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="2.2&#xa;Compute Expiry&#xa;Status (fresh / ageing / expired)" vertex="1">
+          <mxGeometry height="80" width="190" x="450" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="q3" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="3.1&#xa;Place Order" vertex="1">
+          <mxGeometry height="80" width="170" x="220" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="q4" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="3.2&#xa;Fulfil Order&#xa;(FIFO deduction)" vertex="1">
+          <mxGeometry height="80" width="170" x="460" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="q5" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="4.1&#xa;Generate&#xa;Invoice" vertex="1">
+          <mxGeometry height="80" width="170" x="700" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="q6" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="4.2&#xa;Record&#xa;Payment" vertex="1">
+          <mxGeometry height="80" width="170" x="700" y="480" as="geometry" />
+        </mxCell>
+        <mxCell id="q7" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="5.1&#xa;Produce Dashboard&#xa;and Reports" vertex="1">
+          <mxGeometry height="80" width="190" x="760" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="s2" parent="1" style="shape=partialRectangle;whiteSpace=wrap;html=1;left=0;right=0;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="D2 | Products and Stock Batches" vertex="1">
+          <mxGeometry height="40" width="220" x="240" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="s3" parent="1" style="shape=partialRectangle;whiteSpace=wrap;html=1;left=0;right=0;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="D3 | Customers and Orders" vertex="1">
+          <mxGeometry height="40" width="220" x="300" y="470" as="geometry" />
+        </mxCell>
+        <mxCell id="s4" parent="1" style="shape=partialRectangle;whiteSpace=wrap;html=1;left=0;right=0;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="D4 | Invoices" vertex="1">
+          <mxGeometry height="40" width="220" x="700" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="h1" edge="1" parent="1" source="staff" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=0.5;exitY=0;entryX=0;entryY=0.5;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="q1" value="new stock details">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h2" edge="1" parent="1" source="q1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=0.5;exitY=1;entryX=0.25;entryY=0;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="s2" value="batch record">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h3" edge="1" parent="1" source="s2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=0.75;exitY=0;entryX=0.5;entryY=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="q2" value="batch expiry dates">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h4" edge="1" parent="1" source="q2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="q7" value="expiry alerts">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h5" edge="1" parent="1" source="staff" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="q3" value="order details">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h6" edge="1" parent="1" source="q3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;startArrow=classic;startFill=1;exitX=0.5;exitY=1;entryX=0.25;entryY=0;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="s3" value="order record">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h7" edge="1" parent="1" source="q3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="q4" value="processed order">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h8" edge="1" parent="1" source="q4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=0.25;exitY=0;entryX=0.75;entryY=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="s2" value="deduct oldest non-expired batch">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h9" edge="1" parent="1" source="q4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="q5" value="delivered order">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h10" edge="1" parent="1" source="q5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=0.75;exitY=1;entryX=0.5;entryY=0;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="s4" value="invoice record">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h11" edge="1" parent="1" source="q5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=0.5;exitY=1;entryX=0.5;entryY=0;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="q6" value="amount paid">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h12" edge="1" parent="1" source="q6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=0.5;exitY=1;entryX=0.25;entryY=0;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="s4" value="update paid amount, status">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h13" edge="1" parent="1" source="q7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=1;exitY=0.5;entryX=0.5;entryY=0;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="owner" value="KPIs and 3D shelf data">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="fig-3-5-usecase" name="Fig 3.5 Use Case Diagram">
+    <mxGraphModel dx="1043" dy="912" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="826" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="boundary" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fontStyle=1;fillColor=none;strokeColor=#AF45ED;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Dairy Business Management System" vertex="1">
+          <mxGeometry height="740" width="600" x="300" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uc1" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Login (JWT)" vertex="1">
+          <mxGeometry height="50" width="190" x="360" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="uc2" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Receive stock batch" vertex="1">
+          <mxGeometry height="50" width="190" x="360" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="uc3" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Monitor expiry alerts" vertex="1">
+          <mxGeometry height="50" width="190" x="360" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="uc4" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Register customer" vertex="1">
+          <mxGeometry height="50" width="190" x="360" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="uc5" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Place order" vertex="1">
+          <mxGeometry height="50" width="190" x="360" y="410" as="geometry" />
+        </mxCell>
+        <mxCell id="uc6" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Update order status&#xa;(pending / processed / delivered)" vertex="1">
+          <mxGeometry height="60" width="190" x="360" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="uc7" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="View dashboard and&#xa;3D inventory shelf" vertex="1">
+          <mxGeometry height="60" width="200" x="650" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="uc8" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Generate invoice&#xa;(automatic)" vertex="1">
+          <mxGeometry height="60" width="200" x="650" y="480" as="geometry" />
+        </mxCell>
+        <mxCell id="uc9" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Record payment" vertex="1">
+          <mxGeometry height="50" width="200" x="650" y="580" as="geometry" />
+        </mxCell>
+        <mxCell id="uc10" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="View invoices and dues" vertex="1">
+          <mxGeometry height="50" width="200" x="650" y="670" as="geometry" />
+        </mxCell>
+        <mxCell id="actStaff" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fillColor=#F694C1;strokeColor=#AF45ED;fontColor=#095C86;" value="Staff" vertex="1">
+          <mxGeometry height="80" width="40" x="120" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="actOwner" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fillColor=#F694C1;strokeColor=#AF45ED;fontColor=#095C86;" value="Owner" vertex="1">
+          <mxGeometry height="80" width="40" x="120" y="560" as="geometry" />
+        </mxCell>
+        <mxCell id="actCust" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fillColor=#F694C1;strokeColor=#AF45ED;fontColor=#095C86;" value="Customer" vertex="1">
+          <mxGeometry height="80" width="40" x="1000" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="a1" edge="1" parent="1" source="actStaff" style="endArrow=none;html=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="uc1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a2" edge="1" parent="1" source="actStaff" style="endArrow=none;html=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="uc2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a3" edge="1" parent="1" source="actStaff" style="endArrow=none;html=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="uc3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a4" edge="1" parent="1" source="actStaff" style="endArrow=none;html=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="uc4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a5" edge="1" parent="1" source="actStaff" style="endArrow=none;html=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="uc5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a6" edge="1" parent="1" source="actStaff" style="endArrow=none;html=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="uc6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a7" edge="1" parent="1" source="actOwner" style="endArrow=none;html=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="uc1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a8" edge="1" parent="1" source="actOwner" style="endArrow=none;html=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="uc7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a9" edge="1" parent="1" source="actOwner" style="endArrow=none;html=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="uc9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a10" edge="1" parent="1" source="actOwner" style="endArrow=none;html=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="uc10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a11" edge="1" parent="1" source="actCust" style="endArrow=none;html=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="uc5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a12" edge="1" parent="1" source="actCust" style="endArrow=none;html=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="uc8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="inc1" edge="1" parent="1" source="uc6" style="endArrow=open;endFill=0;dashed=1;html=1;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="uc8" value="«include»">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ucnote" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontStyle=2;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Staff also view the dashboard; only the Owner can see invoices and financial totals." vertex="1">
+          <mxGeometry height="60" width="250" x="40" y="700" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="fig-3-6-activity" name="Fig 3.6 Activity Diagram">
+    <mxGraphModel dx="1507" dy="1318" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1400" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="start" parent="1" style="ellipse;html=1;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="" vertex="1">
+          <mxGeometry height="30" width="30" x="405" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="act1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Log in with username and password" vertex="1">
+          <mxGeometry height="40" width="240" x="300" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="dec1" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Credentials&#xa;valid?" vertex="1">
+          <mxGeometry height="70" width="150" x="345" y="180" as="geometry" />
+        </mxCell>
+        <mxCell id="act2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Show role-based dashboard (KPIs + 3D inventory shelf)" vertex="1">
+          <mxGeometry height="50" width="240" x="300" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="act3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Receive new stock as batch (quantity, price, expiry date)" vertex="1">
+          <mxGeometry height="50" width="240" x="300" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="act4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="System computes expiry status per batch (fresh / ageing / expired)" vertex="1">
+          <mxGeometry height="50" width="240" x="300" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="act5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Create customer order (select customer, products, quantities)" vertex="1">
+          <mxGeometry height="50" width="240" x="300" y="580" as="geometry" />
+        </mxCell>
+        <mxCell id="dec2" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Sufficient&#xa;non-expired stock?" vertex="1">
+          <mxGeometry height="80" width="180" x="330" y="670" as="geometry" />
+        </mxCell>
+        <mxCell id="acterr" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Show insufficient-stock error" vertex="1">
+          <mxGeometry height="40" width="190" x="600" y="690" as="geometry" />
+        </mxCell>
+        <mxCell id="act6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Deduct stock from oldest non-expired batches (FIFO); mark order processed" vertex="1">
+          <mxGeometry height="50" width="240" x="300" y="800" as="geometry" />
+        </mxCell>
+        <mxCell id="act7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Mark order delivered" vertex="1">
+          <mxGeometry height="40" width="240" x="300" y="890" as="geometry" />
+        </mxCell>
+        <mxCell id="act8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="System auto-generates invoice (total = sum of quantity x unit price)" vertex="1">
+          <mxGeometry height="50" width="240" x="300" y="970" as="geometry" />
+        </mxCell>
+        <mxCell id="act9" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Record customer payment; invoice status becomes unpaid / partial / paid" vertex="1">
+          <mxGeometry height="50" width="240" x="300" y="1060" as="geometry" />
+        </mxCell>
+        <mxCell id="act10" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F694C1;strokeColor=#AF45ED;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="Owner reviews dashboard KPIs, invoices, and dues" vertex="1">
+          <mxGeometry height="50" width="240" x="300" y="1150" as="geometry" />
+        </mxCell>
+        <mxCell id="end" parent="1" style="ellipse;html=1;fillColor=#F694C1;strokeColor=#AF45ED;rounded=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;fontColor=#095C86;" value="" vertex="1">
+          <mxGeometry height="30" width="30" x="405" y="1250" as="geometry" />
+        </mxCell>
+        <mxCell id="t1" edge="1" parent="1" source="start" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="act1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t2" edge="1" parent="1" source="act1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="dec1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t3" edge="1" parent="1" source="dec1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=0;exitY=0.5;entryX=0;entryY=0.5;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="act1" value="No">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="240" y="215" />
+              <mxPoint x="240" y="120" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t4" edge="1" parent="1" source="dec1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="act2" value="Yes">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t5" edge="1" parent="1" source="act2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="act3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t6" edge="1" parent="1" source="act3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="act4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t7" edge="1" parent="1" source="act4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="act5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t8" edge="1" parent="1" source="act5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="dec2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t9" edge="1" parent="1" source="dec2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="acterr" value="No">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t10" edge="1" parent="1" source="acterr" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=0.5;exitY=0;entryX=1;entryY=0.5;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="act5" value="revise order">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t11" edge="1" parent="1" source="dec2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="act6" value="Yes">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t12" edge="1" parent="1" source="act6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="act7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t13" edge="1" parent="1" source="act7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="act8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t14" edge="1" parent="1" source="act8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="act9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t15" edge="1" parent="1" source="act9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="act10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t16" edge="1" parent="1" source="act10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;sketch=1;curveFitting=1;jiggle=2;labelBackgroundColor=none;strokeColor=#60E696;fontColor=default;" target="end">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
