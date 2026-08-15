@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DairyDesk — Developer Guide</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 16mm 16mm; }
+
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    font-size: 10.2pt;
+    line-height: 1.5;
+    color: #1e293b;
+    margin: 0;
+  }
+
+  h1, h2, h3 { line-height: 1.25; margin: 0; }
+  h2 {
+    font-size: 15pt;
+    color: #0f172a;
+    margin: 22px 0 10px;
+    padding-bottom: 5px;
+    border-bottom: 2px solid #0ea5e9;
+    break-after: avoid;
+  }
+  h3 {
+    font-size: 11.5pt;
+    color: #0f172a;
+    margin: 16px 0 6px;
+    break-after: avoid;
+  }
+  p { margin: 0 0 8px; }
+  ul, ol { margin: 0 0 8px; padding-left: 20px; }
+  li { margin-bottom: 4px; }
+
+  code {
+    font-family: "Cascadia Mono", Consolas, "Courier New", monospace;
+    font-size: 8.9pt;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 3px;
+    padding: 0.5px 4px;
+    white-space: nowrap;
+  }
+  pre {
+    font-family: "Cascadia Mono", Consolas, "Courier New", monospace;
+    font-size: 8.6pt;
+    line-height: 1.45;
+    background: #0f172a;
+    color: #e2e8f0;
+    border-radius: 5px;
+    padding: 9px 11px;
+    margin: 0 0 10px;
+    overflow-x: auto;
+    break-inside: avoid;
+  }
+  pre code { background: none; border: none; padding: 0; color: inherit; white-space: pre; }
+  pre .c { color: #94a3b8; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0 0 12px;
+    font-size: 9.3pt;
+    break-inside: avoid;
+  }
+  th {
+    background: #0f172a;
+    color: #fff;
+    text-align: left;
+    padding: 6px 8px;
+    font-weight: 600;
+  }
+  td { padding: 6px 8px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+  tbody tr:nth-child(even) { background: #f8fafc; }
+
+  /* ---- Cover ---- */
+  .cover {
+    text-align: center;
+    padding-top: 55mm;
+    break-after: page;
+  }
+  .cover .mark { font-size: 40pt; line-height: 1; }
+  .cover h1 { font-size: 30pt; margin: 14px 0 6px; color: #0f172a; letter-spacing: -0.5px; }
+  .cover .sub { font-size: 13pt; color: #475569; margin-bottom: 28px; }
+  .cover .rule { width: 70px; height: 3px; background: #0ea5e9; margin: 0 auto 28px; }
+  .cover .meta {
+    display: inline-block;
+    text-align: left;
+    font-size: 9.8pt;
+    color: #475569;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 12px 20px;
+  }
+  .cover .meta b { color: #0f172a; }
+
+  /* ---- Callouts ---- */
+  .box {
+    border-left: 4px solid #94a3b8;
+    background: #f8fafc;
+    padding: 9px 12px;
+    margin: 0 0 12px;
+    break-inside: avoid;
+  }
+  .box p:last-child { margin-bottom: 0; }
+  .box .lbl {
+    display: block;
+    font-size: 8.2pt;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    margin-bottom: 3px;
+  }
+  .stop   { border-left-color: #dc2626; background: #fef2f2; }
+  .stop   .lbl { color: #dc2626; }
+  .warn   { border-left-color: #d97706; background: #fffbeb; }
+  .warn   .lbl { color: #b45309; }
+  .ok     { border-left-color: #059669; background: #ecfdf5; }
+  .ok     .lbl { color: #047857; }
+
+  .rulecard {
+    border: 1px solid #e2e8f0;
+    border-left: 4px solid #0ea5e9;
+    border-radius: 0 5px 5px 0;
+    padding: 9px 12px;
+    margin-bottom: 10px;
+    break-inside: avoid;
+  }
+  .rulecard h3 { margin-top: 0; }
+  .rulecard .why {
+    font-size: 9pt;
+    color: #475569;
+    border-top: 1px dashed #cbd5e1;
+    margin-top: 6px;
+    padding-top: 5px;
+  }
+
+  .checklist { list-style: none; padding-left: 0; }
+  .checklist li {
+    padding-left: 22px;
+    position: relative;
+    margin-bottom: 6px;
+    break-inside: avoid;
+  }
+  .checklist li::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 2px;
+    width: 12px; height: 12px;
+    border: 1.5px solid #64748b;
+    border-radius: 2px;
+  }
+
+  .pagebreak { break-before: page; }
+  .lead { font-size: 10.8pt; color: #334155; }
+  .muted { color: #64748b; font-size: 9pt; }
+  .nowrap { white-space: nowrap; }
+  footer {
+    margin-top: 26px;
+    padding-top: 8px;
+    border-top: 1px solid #e2e8f0;
+    font-size: 8.6pt;
+    color: #64748b;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ COVER ============ -->
+<div class="cover">
+  <div class="mark">🥛</div>
+  <h1>DairyDesk</h1>
+  <div class="sub">Developer Guide &mdash; rules, conventions and pre-flight checks</div>
+  <div class="rule"></div>
+  <div class="meta">
+    <b>Audience</b>&nbsp; Anyone adding features or changing existing code<br>
+    <b>Stack</b>&nbsp; Django 5.1 + DRF &middot; React 19 + Vite 8 &middot; PostgreSQL 16<br>
+    <b>Runs on</b>&nbsp; Docker (Python 3.13 / Node 22 pinned by the images)<br>
+    <b>Read first</b>&nbsp; <code>README.md</code> for setup, <code>PROJECT_SPEC.md</code> for the spec
+  </div>
+</div>
+
+<!-- ============ 1 ============ -->
+<h2>1. Before you write any code</h2>
+
+<p class="lead">DairyDesk is a small codebase with a few sharp edges. Almost every bug
+introduced here comes from missing one of the rules in section 3 &mdash; they are not style
+preferences, they are correctness requirements around <b>money</b>, <b>stock</b> and
+<b>who is allowed to see what</b>.</p>
+
+<h3>Get the app running</h3>
+<pre><code>git clone https://github.com/TanmayKamble004/DairyDesk.git
+cd DairyDesk
+docker compose up --build</code></pre>
+<p>That is the entire setup &mdash; no virtualenv, no <code>npm install</code>, no <code>.env</code> to copy.
+Frontend on <code>:5173</code>, API on <code>:8000</code>, admin at <code>/admin</code>.
+Log in as <code>owner</code>/<code>owner123</code> or <code>staff</code>/<code>staff123</code>.</p>
+
+<div class="box ok">
+  <span class="lbl">You do not need Python or Node installed</span>
+  <p>The containers pin Python 3.13 and Node 22. If you have a local venv from before, ignore
+  it &mdash; do not run the servers on the host and in Docker at the same time, they will fight
+  over ports 8000 and 5173.</p>
+</div>
+
+<h3>Understand the domain first</h3>
+<p>Four models carry all the business logic. Skim them before touching anything:</p>
+<table>
+  <thead><tr><th style="width:22%">Model</th><th>What it means &mdash; and the part people get wrong</th></tr></thead>
+  <tbody>
+    <tr><td><b>Product</b></td><td>A sellable item with a <i>current</i> <code>selling_price</code>. Changing this price must never change past orders.</td></tr>
+    <tr><td><b>StockBatch</b></td><td>A physical delivery with a quantity and an expiry date. Stock lives in batches, never on the product.</td></tr>
+    <tr><td><b>Order / OrderItem</b></td><td>An order deducts stock at creation time and <i>snapshots</i> the price into <code>OrderItem.unit_price</code>.</td></tr>
+    <tr><td><b>Invoice</b></td><td>Created automatically when an order becomes <code>delivered</code>. Owner-only data.</td></tr>
+  </tbody>
+</table>
+
+<!-- ============ 2 ============ -->
+<h2>2. Pre-flight checklist</h2>
+<p>Run through this before opening a pull request. It takes two minutes and catches nearly
+everything.</p>
+
+<h3>Any change</h3>
+<ul class="checklist">
+  <li>The app still starts clean: <code>docker compose down &amp;&amp; docker compose up</code> with no errors in the logs.</li>
+  <li>You logged in as <b>both</b> <code>owner</code> and <code>staff</code> and clicked through the affected pages.</li>
+  <li>No secrets, API keys, or absolute URLs hardcoded &mdash; config comes from environment variables only.</li>
+  <li>No <code>console.log</code> / <code>print()</code> debugging left behind.</li>
+  <li><code>git status</code> is clean of junk &mdash; no <code>.env</code>, no <code>__pycache__</code>, no <code>node_modules</code>.</li>
+</ul>
+
+<h3>If you touched a model</h3>
+<ul class="checklist">
+  <li>Generated the migration: <code>docker compose exec backend python manage.py makemigrations</code></li>
+  <li><b>Committed the migration file.</b> Forgetting it breaks every teammate's database.</li>
+  <li>Confirmed it applies: <code>docker compose restart backend</code> shows <code>Applying &hellip; OK</code>.</li>
+  <li>Checked nothing is pending: <code>makemigrations --check --dry-run</code> prints <i>No changes detected</i>.</li>
+  <li>Updated <code>seed_demo.py</code> if the new field is needed for a realistic demo.</li>
+</ul>
+
+<h3>If you added or changed an API endpoint</h3>
+<ul class="checklist">
+  <li>Route registered in <code>backend/core/urls.py</code> (router for viewsets, <code>path()</code> for APIViews).</li>
+  <li>New fields added to the serializer's explicit <code>fields</code> list &mdash; they will not appear otherwise.</li>
+  <li>Decided the permission deliberately. The global default is <code>IsAuthenticated</code>; financial data needs <code>IsOwner</code>.</li>
+  <li>Tested it while logged in as <code>staff</code>, not just <code>owner</code>.</li>
+</ul>
+
+<h3>If you touched the frontend</h3>
+<ul class="checklist">
+  <li>Used the shared <code>api</code> client, not raw <code>axios</code> or <code>fetch</code>.</li>
+  <li>Reused components from <code>components/ui.jsx</code> instead of restyling from scratch.</li>
+  <li>Errors surfaced through <code>apiErrorMessage(error)</code>.</li>
+  <li>Owner-only pages wrapped in <code>&lt;RequireOwner&gt;</code> <b>and</b> protected server-side.</li>
+</ul>
+
+<!-- ============ 3 ============ -->
+<div class="pagebreak"></div>
+<h2>3. The rules that actually matter</h2>
+<p>These encode business correctness. Breaking one produces wrong money, wrong stock, or a
+data leak &mdash; usually with no error message.</p>
+
+<div class="rulecard">
+  <h3>3.1 &nbsp;Role gating lives in two places. Always do both.</h3>
+  <p>Financial data is owner-only. That is enforced on the server by <code>IsOwner</code>
+  (<code>core/permissions.py</code>) and in the UI by <code>RequireOwner</code> (<code>App.jsx</code>).</p>
+  <div class="why"><b>Why:</b> the frontend guard is cosmetic. A staff user who calls the API
+  directly gets the data anyway unless the server refuses. Conversely, server-only protection
+  gives staff a broken page instead of a hidden one. <b>Both, every time.</b></div>
+</div>
+
+<div class="rulecard">
+  <h3>3.2 &nbsp;Dashboard KPIs are filtered by role in the view</h3>
+  <p><code>DashboardView</code> only puts <code>total_available_stock_value</code>,
+  <code>todays_sales_total</code> and <code>unpaid_invoice_count</code> in the response when
+  <code>is_owner</code>. The frontend renders whichever keys are present.</p>
+  <div class="why"><b>Why:</b> adding a money KPI outside the <code>if is_owner</code> block silently
+  leaks revenue data to staff, and nothing in the UI will look wrong.</div>
+</div>
+
+<div class="rulecard">
+  <h3>3.3 &nbsp;<code>unit_price</code> is a historical snapshot &mdash; never recompute it</h3>
+  <p><code>OrderItem.unit_price</code> is copied from the product at order-creation time.
+  Totals must always be derived from it, never from <code>product.selling_price</code>.</p>
+  <div class="why"><b>Why:</b> if you read the live price, raising a product's price retroactively
+  rewrites every historical invoice. Use <code>item.line_total</code>.</div>
+</div>
+
+<div class="rulecard">
+  <h3>3.4 &nbsp;Stock deduction is FIFO and must run inside a transaction</h3>
+  <p><code>deduct_stock_fifo()</code> in <code>core/services.py</code> takes from the oldest
+  non-expired batches first and uses <code>select_for_update()</code>. Every caller must wrap it in
+  <code>transaction.atomic()</code> &mdash; see <code>OrderSerializer.create</code>.</p>
+  <div class="why"><b>Why:</b> the row locks only hold inside a transaction. Outside one, two
+  simultaneous orders can sell the same batch twice. It also validates all-or-nothing: if any
+  product is short, it raises and deducts nothing.</div>
+</div>
+
+<div class="rulecard">
+  <h3>3.5 &nbsp;Order status moves one way only</h3>
+  <p><code>pending → processed → delivered</code>, enforced by <code>ORDER_STATUS_TRANSITIONS</code>.
+  <code>status</code> is read-only on <code>OrderSerializer</code>; changes go through
+  <code>PATCH /api/orders/{id}/</code> only.</p>
+  <div class="why"><b>Why:</b> reaching <code>delivered</code> creates an invoice. Allowing backward
+  moves would orphan invoices and corrupt the sales figures.</div>
+</div>
+
+<div class="rulecard">
+  <h3>3.6 &nbsp;Delivering an order auto-creates its invoice</h3>
+  <p><code>ensure_invoice(order)</code> is idempotent (<code>get_or_create</code>). Never create
+  <code>Invoice</code> objects by hand elsewhere.</p>
+  <div class="why"><b>Why:</b> one order has exactly one invoice (<code>OneToOneField</code>), and the
+  total must be computed the same way everywhere.</div>
+</div>
+
+<div class="rulecard">
+  <h3>3.7 &nbsp;<code>expiry_status</code> is computed, never stored</h3>
+  <p>It is a <code>@property</code> on <code>StockBatch</code> derived from today's date and
+  <code>AGEING_THRESHOLD_DAYS = 3</code>. Fresh &gt; 3 days left, ageing ≤ 3 days, expired past.</p>
+  <div class="why"><b>Why:</b> a stored column would be stale the next morning. This one constant
+  drives the 3D shelf colours, the dashboard warning counts and the inventory endpoint &mdash;
+  change it and all three move together.</div>
+</div>
+
+<div class="rulecard">
+  <h3>3.8 &nbsp;Expired stock counts as visible, not as available</h3>
+  <p>Across <code>InventoryView</code>, <code>DashboardView</code> and
+  <code>Product.available_quantity</code>: expired batches are shown and counted, but excluded from
+  available quantity and stock value. Batches with <code>quantity == 0</code> are skipped entirely.</p>
+  <div class="why"><b>Why:</b> the shop still physically holds expired stock and needs to see it,
+  but must never sell it or count it as money.</div>
+</div>
+
+<div class="rulecard">
+  <h3>3.9 &nbsp;Use the custom user model</h3>
+  <p><code>AUTH_USER_MODEL = "core.User"</code>, with a <code>role</code> field of
+  <code>owner</code> / <code>staff</code>. Reference it via <code>get_user_model()</code> or
+  <code>settings.AUTH_USER_MODEL</code>.</p>
+  <div class="why"><b>Why:</b> importing <code>django.contrib.auth.models.User</code> silently
+  targets the wrong table.</div>
+</div>
+
+<div class="rulecard">
+  <h3>3.10 &nbsp;Deletions are deliberately blocked</h3>
+  <p><code>Customer → Order</code> and <code>Product → OrderItem</code> use
+  <code>on_delete=PROTECT</code>.</p>
+  <div class="why"><b>Why:</b> deleting a customer or product that appears in order history would
+  destroy the audit trail. If a "delete" feature is requested, add a deactivation flag instead of
+  weakening these.</div>
+</div>
+
+<!-- ============ 4 ============ -->
+<div class="pagebreak"></div>
+<h2>4. Backend conventions</h2>
+
+<table>
+  <thead><tr><th style="width:26%">Where</th><th>Convention</th></tr></thead>
+  <tbody>
+    <tr><td><code>models.py</code></td><td>Business <i>data</i>. Derived values are <code>@property</code>, not columns.</td></tr>
+    <tr><td><code>services.py</code></td><td>Business <i>rules</i> shared by more than one caller (stock deduction, invoice creation). Put logic here, not in views.</td></tr>
+    <tr><td><code>serializers.py</code></td><td>Validation and write logic. Multi-step writes go in <code>create()</code>/<code>update()</code> wrapped in <code>transaction.atomic()</code>.</td></tr>
+    <tr><td><code>views.py</code></td><td>Thin. Wire up querysets, permissions and serializers &mdash; delegate real work to services.</td></tr>
+    <tr><td><code>permissions.py</code></td><td>Reusable permission classes. Add here rather than checking roles inline in views.</td></tr>
+  </tbody>
+</table>
+
+<h3>Things to keep doing</h3>
+<ul>
+  <li><b>Explicit serializer <code>fields</code> lists.</b> Never <code>fields = "__all__"</code> &mdash; it exposes new columns the moment they are added.</li>
+  <li><b><code>select_related</code> / <code>prefetch_related</code> on every list queryset.</b> The existing viewsets all do this; copy the pattern or you will add N+1 queries.</li>
+  <li><b>Money is <code>DecimalField</code>, never <code>float</code>.</b> Serialize totals with <code>str()</code>, as the dashboard does.</li>
+  <li><b>Dates via <code>timezone.localdate()</code></b>, not <code>date.today()</code> &mdash; <code>USE_TZ</code> is on.</li>
+  <li><b>Validation errors as DRF <code>ValidationError</code></b> with a field key, so the frontend's <code>apiErrorMessage</code> can render them.</li>
+</ul>
+
+<h2>5. Frontend conventions</h2>
+
+<ul>
+  <li><b>Always import <code>api</code> from <code>src/api/client.js</code>.</b> It attaches the JWT and
+  transparently refreshes it on a 401 (single-flight, so parallel calls refresh once). A raw
+  <code>fetch</code> or bare <code>axios</code> call bypasses both and will 401 randomly after eight hours.</li>
+  <li><b>Reuse <code>components/ui.jsx</code></b> &mdash; <code>Card</code>, <code>PageHeader</code>,
+  <code>Spinner</code>, <code>ErrorAlert</code>, <code>Badge</code>, <code>Th</code>, <code>Td</code>, plus the
+  <code>inputClass</code> / <code>buttonPrimary</code> / <code>buttonSecondary</code> class strings.</li>
+  <li><b>Every page handles three states:</b> loading, error, loaded. Copy the pattern from
+  <code>pages/Inventory.jsx</code>.</li>
+  <li><b>Format currency with the existing <code>formatINR</code> helper</b> (<code>Dashboard.jsx</code>)
+  rather than inventing another one.</li>
+  <li><b>Tailwind utility classes only.</b> No new CSS files &mdash; Tailwind 4 is wired in through the
+  Vite plugin.</li>
+  <li><b>Never read tokens from <code>localStorage</code> directly.</b> Use <code>getAuth()</code> /
+  <code>useAuth()</code>.</li>
+</ul>
+
+<div class="box warn">
+  <span class="lbl">The 3D shelf is performance-sensitive</span>
+  <p><code>InventoryShelf.jsx</code> renders with react-three-fiber. Objects created inside the render
+  path (geometries, materials, arrays) get rebuilt every frame and will tank the frame rate. Memoise
+  them, and test with the full seeded dataset rather than two products.</p>
+</div>
+
+<!-- ============ 6 ============ -->
+<h2>6. Working with Docker day to day</h2>
+
+<p>Your files are mounted into the containers, so <b>editing <code>.py</code>, <code>.jsx</code> or
+<code>.css</code> needs no command</b> &mdash; Django reloads in about a second, Vite hot-swaps the
+module in the browser. Only these need action:</p>
+
+<table>
+  <thead><tr><th style="width:38%">Situation</th><th>Command</th></tr></thead>
+  <tbody>
+    <tr><td>Added a Python package</td><td><code>docker compose up -d --build backend</code></td></tr>
+    <tr><td>Added an npm package</td><td><code>docker compose up -d --build --renew-anon-volumes frontend</code></td></tr>
+    <tr><td>Changed a model</td><td><code>docker compose exec backend python manage.py makemigrations</code></td></tr>
+    <tr><td>Pulled new migrations</td><td><code>docker compose restart backend</code></td></tr>
+    <tr><td>Any <code>manage.py</code> command</td><td><code>docker compose exec backend python manage.py &lt;cmd&gt;</code></td></tr>
+    <tr><td>Reading logs</td><td><code>docker compose logs -f backend</code></td></tr>
+    <tr><td>Shell in a container</td><td><code>docker compose exec backend bash</code> <span class="muted">(frontend is Alpine &rarr; use <code>sh</code>)</span></td></tr>
+  </tbody>
+</table>
+
+<div class="box stop">
+  <span class="lbl">Three commands that destroy data</span>
+  <p><code>docker compose down -v</code> &mdash; the <code>-v</code> deletes the Postgres volume and
+  everything in it. Plain <code>down</code> is the safe one.</p>
+  <p><code>python manage.py seed_demo</code> &mdash; <b>clears</b> products, batches, customers, orders
+  and invoices before reseeding. It is not additive.</p>
+  <p><code>python manage.py flush</code> &mdash; wipes all rows. Rarely what you want here.</p>
+</div>
+
+<div class="box ok">
+  <span class="lbl">Safe by design</span>
+  <p>Demo data is seeded <b>only into an empty database</b>. Restarting containers, rebuilding
+  images and running <code>docker compose down</code> all preserve your data.</p>
+</div>
+
+<h3>Do not change these without understanding why</h3>
+<ul>
+  <li><b><code>DB_HOST: db</code> and <code>DB_PORT: 5432</code> are hardcoded in
+  <code>docker-compose.yml</code></b>, not read from <code>.env</code>. Inside the Docker network the
+  backend reaches Postgres by service name on its container port; the <code>.env</code> values describe
+  how your <i>host</i> reaches it and may differ (5433 is common when 5432 is taken).</li>
+  <li><b><code>.gitattributes</code> forces LF endings on <code>*.sh</code>.</b> If
+  <code>docker-entrypoint.sh</code> ever gets CRLF, the container dies with a baffling
+  <code>no such file or directory</code>.</li>
+  <li><b><code>node_modules</code> lives in a Docker volume</b>, deliberately masking the host copy
+  (which may hold Windows binaries). That is why npm changes need
+  <code>--renew-anon-volumes</code>.</li>
+</ul>
+
+<!-- ============ 7 ============ -->
+<div class="pagebreak"></div>
+<h2>7. Testing &mdash; read this honestly</h2>
+
+<div class="box stop">
+  <span class="lbl">There is no automated test suite</span>
+  <p><code>backend/core/tests.py</code> is still the empty Django stub, and there are no frontend
+  tests. Nothing will catch a regression for you. Until that changes, <b>manual verification is
+  mandatory</b>, and the burden is on the person making the change.</p>
+</div>
+
+<h3>Minimum manual pass for a backend change</h3>
+<ol>
+  <li>Log in as <code>owner</code> &mdash; dashboard, inventory, orders and invoices all load.</li>
+  <li>Log in as <code>staff</code> &mdash; financial KPIs are absent and <code>/invoices</code> is not reachable.</li>
+  <li>Create an order &mdash; stock drops from the oldest batch first.</li>
+  <li>Try to order more than is available &mdash; you get a clear error and <b>nothing</b> is deducted.</li>
+  <li>Move an order <code>pending → processed → delivered</code> &mdash; an invoice appears with the correct total.</li>
+  <li>Re-check the dashboard &mdash; today's order count and sales total moved as expected.</li>
+</ol>
+
+<p>Reset to a known state whenever you need one:</p>
+<pre><code>docker compose exec backend python manage.py seed_demo</code></pre>
+<p>The seed deliberately includes fresh, ageing <i>and</i> expired batches so all three shelf
+colours are visible &mdash; keep it that way if you edit it.</p>
+
+<div class="box ok">
+  <span class="lbl">Adding tests is welcome</span>
+  <p>The highest-value first tests are <code>deduct_stock_fifo</code> (ordering, shortage
+  roll-back, concurrency), the order status transition rules, and a staff-cannot-read-invoices
+  permission test. Run them with
+  <code>docker compose exec backend python manage.py test</code>.</p>
+</div>
+
+<h2>8. Git conventions</h2>
+<ul>
+  <li>Branch off <code>main</code>; do not commit directly to it.</li>
+  <li>Existing history uses short prefixed subjects &mdash; <code>docs: &hellip;</code>,
+  <code>Phase 4: &hellip;</code>. Keep messages in the imperative and scoped to one change.</li>
+  <li><b>Never commit</b> <code>.env</code>, <code>.venv/</code>, <code>node_modules/</code>,
+  <code>__pycache__/</code>, or <code>*.sqlite3</code>. <code>.gitignore</code> covers these &mdash; do
+  not force-add them.</li>
+  <li><b>Always commit</b> migration files alongside the model change that produced them, and
+  <code>package-lock.json</code> alongside a dependency change.</li>
+  <li>Pull, then <code>docker compose restart backend</code> before assuming something is broken &mdash;
+  it is often just an unapplied migration.</li>
+</ul>
+
+<h2>9. Common mistakes</h2>
+<table>
+  <thead><tr><th style="width:44%">Symptom</th><th>Real cause</th></tr></thead>
+  <tbody>
+    <tr><td>Field added but missing from the API response</td><td>Not in the serializer's explicit <code>fields</code> list.</td></tr>
+    <tr><td><code>relation "core_&hellip;" does not exist</code></td><td>Migration not generated, or generated but not committed.</td></tr>
+    <tr><td>Teammate's app broke after your merge</td><td>Model change committed without its migration file.</td></tr>
+    <tr><td>Staff can see money</td><td>Missing <code>IsOwner</code> server-side, or a KPI added outside the <code>is_owner</code> block.</td></tr>
+    <tr><td>Requests 401 after a few hours</td><td>Bypassed the shared <code>api</code> client, so the refresh interceptor never ran.</td></tr>
+    <tr><td>Old invoice totals changed by themselves</td><td>Reading <code>product.selling_price</code> instead of <code>OrderItem.unit_price</code>.</td></tr>
+    <tr><td>Stock went negative or double-sold</td><td><code>deduct_stock_fifo</code> called outside <code>transaction.atomic()</code>.</td></tr>
+    <tr><td><code>Cannot find module</code> after pulling</td><td>New npm package &mdash; rebuild with <code>--renew-anon-volumes</code>.</td></tr>
+    <tr><td>Port 8000 or 5173 already in use</td><td>A host-run <code>runserver</code>/<code>npm run dev</code> is still going, or set <code>BACKEND_PORT</code>/<code>FRONTEND_PORT</code>.</td></tr>
+    <tr><td>All your data vanished</td><td><code>docker compose down -v</code>. The volume is gone; reseed.</td></tr>
+  </tbody>
+</table>
+
+<footer>
+  DairyDesk Developer Guide &middot; keep this in sync with <code>README.md</code> and
+  <code>PROJECT_SPEC.md</code> &middot; source: <code>docs/developer-guide.html</code>
+</footer>
+
+</body>
+</html>

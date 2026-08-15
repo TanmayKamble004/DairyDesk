@@ -1,0 +1,8 @@
+# Shell scripts must keep LF endings or they break inside Linux containers
+# (a CRLF shebang fails with a confusing "no such file or directory").
+*.sh text eol=lf
+
+# Same reasoning for files copied into images verbatim.
+Dockerfile text eol=lf
+.dockerignore text eol=lf
+docker-compose.yml text eol=lf

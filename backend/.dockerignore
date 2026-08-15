@@ -1,0 +1,20 @@
+# Host virtualenv — built for the host OS, must never reach the Linux image.
+.venv/
+venv/
+env/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Secrets are injected as env vars by compose, never baked in.
+.env
+*.env
+!.env.example
+
+# Local artefacts
+*.sqlite3
+db.sqlite3
+staticfiles/
+media/
+*.log

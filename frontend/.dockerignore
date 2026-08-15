@@ -1,0 +1,14 @@
+# Host-built dependencies — the image installs its own Linux binaries.
+node_modules/
+
+# Build output and caches
+dist/
+build/
+.vite/
+
+# Secrets / local overrides are injected as env vars by compose.
+.env
+*.env
+!.env.example
+*.local
+*.log

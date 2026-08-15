@@ -17,5 +17,57 @@ services:
       timeout: 5s
       retries: 5
 
+  backend:
+    build: ./backend
+    container_name: dairydesk_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-dairydesk}
+      POSTGRES_USER: ${POSTGRES_USER:-dairydesk}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dairydesk}
+      # Deliberately not ${DB_HOST}/${DB_PORT}: those describe how the *host*
+      # reaches Postgres. Inside this network it's always the service name and
+      # the container's own port, so one .env serves both ways of running.
+      DB_HOST: db
+      DB_PORT: 5432
+      SECRET_KEY: ${SECRET_KEY:-dev-insecure-change-me}
+      DEBUG: ${DEBUG:-True}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,backend}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+      SEED_DEMO: ${SEED_DEMO:-true}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      # Source is mounted, so runserver's autoreloader picks up host edits.
+      - ./backend:/app
+    # Keeps `breakpoint()` / pdb usable via `docker attach dairydesk_backend`.
+    stdin_open: true
+    tty: true
+
+  frontend:
+    build: ./frontend
+    container_name: dairydesk_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      # The browser runs on the host, so it reaches the API on the published
+      # port — not through the compose network.
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+      VITE_USE_POLLING: "1"
+      # Only needed if FRONTEND_PORT is remapped, so HMR can reconnect.
+      VITE_HMR_CLIENT_PORT: ${VITE_HMR_CLIENT_PORT:-}
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    volumes:
+      - ./frontend:/app
+      # Anonymous volume masks the host's node_modules (wrong OS binaries) and
+      # keeps the image's Linux install. Recreate it with --renew-anon-volumes
+      # after changing package.json.
+      - /app/node_modules
+
 volumes:
   dairydesk_pgdata:
