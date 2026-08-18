@@ -275,4 +275,6 @@ database) and `frontend/.env.example` (`VITE_API_URL`). Nothing is hardcoded.
 
 `.env` is **optional**: `docker-compose.yml` supplies a default for every variable, so
 the stack runs on a bare clone. Create one only to override something (ports, secret
-key, disabling the demo seed). Values you set there win over the defaults.
+key, disabling the demo seed). Values you set there win over the defaults. 
+ created by -----
+ 
