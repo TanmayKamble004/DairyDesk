@@ -356,6 +356,71 @@ class DisposalAPITests(APITestCase):
         self.assertEqual(response.status_code, 405)
 
 
+class BatchPurchasePriceVisibilityTests(APITestCase):
+    """purchase_price is financial data: owner-only on read, writable by staff.
+
+    Staff keep the rest of the batch — quantity and expiry drive the disposal
+    feature — so this withholds the one field rather than the endpoint.
+    """
+
+    def setUp(self):
+        self.owner = make_user("owner", User.Role.OWNER)
+        self.staff = make_user("staff", User.Role.STAFF)
+        self.product = make_product()
+        self.batch = make_batch(self.product, quantity=10, days_to_expiry=5)
+
+    def test_owner_sees_purchase_price(self):
+        self.client.force_authenticate(self.owner)
+
+        row = self.client.get("/api/stock-batches/").data[0]
+
+        self.assertEqual(row["purchase_price"], "50.00")
+
+    def test_staff_does_not_see_purchase_price(self):
+        self.client.force_authenticate(self.staff)
+
+        response = self.client.get("/api/stock-batches/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("purchase_price", response.data[0])
+
+    def test_staff_still_sees_fields_the_disposal_feature_needs(self):
+        self.client.force_authenticate(self.staff)
+
+        row = self.client.get("/api/stock-batches/").data[0]
+
+        self.assertEqual(row["quantity"], 10)
+        self.assertEqual(row["expiry_status"], "fresh")
+        self.assertIn("expiry_date", row)
+        self.assertIn("product_name", row)
+
+    def test_staff_can_still_receive_stock(self):
+        """Withholding it on read must not break the receive-stock form."""
+        self.client.force_authenticate(self.staff)
+        today = timezone.localdate()
+
+        response = self.client.post(
+            "/api/stock-batches/",
+            {
+                "product": self.product.pk,
+                "quantity": 12,
+                "purchase_price": "42.50",
+                "expiry_date": (today + timedelta(days=7)).isoformat(),
+                "received_date": today.isoformat(),
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        # Written through to the database...
+        created = StockBatch.objects.get(pk=response.data["id"])
+        self.assertEqual(created.purchase_price, Decimal("42.50"))
+        # ...but not echoed back to staff.
+        self.assertNotIn("purchase_price", response.data)
+
+    def test_unauthenticated_request_is_rejected(self):
+        self.assertEqual(self.client.get("/api/stock-batches/").status_code, 401)
+
+
 class InventoryAggregationTests(APITestCase):
     """Disposals must flow through /api/inventory/ and the dashboard."""
 

@@ -11,6 +11,7 @@ from .models import (
     Product,
     StockBatch,
     StockDisposal,
+    User,
 )
 from .services import deduct_stock_fifo
 
@@ -41,6 +42,14 @@ class ProductSerializer(serializers.ModelSerializer):
 
 
 class StockBatchSerializer(serializers.ModelSerializer):
+    """Batch shape. `purchase_price` is owner-only on read (spec section 4).
+
+    Staff still receive stock, and the model requires a purchase price, so the
+    field stays writable for them — it is only withheld from responses. Anything
+    other than a confirmed owner is treated as staff, so a missing request or
+    unauthenticated user fails closed.
+    """
+
     product_name = serializers.CharField(source="product.name", read_only=True)
     expiry_status = serializers.CharField(read_only=True)
 
@@ -56,6 +65,12 @@ class StockBatchSerializer(serializers.ModelSerializer):
             "received_date",
             "expiry_status",
         ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        user = getattr(self.context.get("request"), "user", None)
+        if getattr(user, "role", None) != User.Role.OWNER:
+            self.fields["purchase_price"].write_only = True
 
 
 class StockDisposalSerializer(serializers.ModelSerializer):
