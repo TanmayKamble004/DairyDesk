@@ -1,6 +1,6 @@
 # Dairy Business Management System — Build Spec (Demo v1)
 
-> Handoff spec for Claude Code. Read this fully before writing code.
+> Handoff spec for the development team. Read this fully before writing code.
 > Goal: a working, credible **demo** in 1–2 days that teammates can run and click through.
 > This is the MVP cut. Deferred features are listed at the bottom — do NOT build them yet.
 
@@ -133,7 +133,7 @@ Commit at the end of each phase so we have working checkpoints.
 
 ## 7. Explicitly OUT of scope for this demo
 
-Do not build these — they're the post-demo (Opus) phase:
+Do not build these — they belong to the post-demo phase:
 Subscriptions / recurring deliveries · separate Payment tracking · Delivery module ·
 detailed Reporting/analytics · Compliance & document storage · native mobile app ·
 demand forecasting · IoT/cold-storage · ERP integration.
