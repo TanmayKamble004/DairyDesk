@@ -9,6 +9,9 @@ from django.utils import timezone
 # Days-to-expiry at or below which a batch counts as "ageing".
 AGEING_THRESHOLD_DAYS = 3
 
+# Available quantity at or below which a product is flagged as running low.
+LOW_STOCK_THRESHOLD = 10
+
 
 class User(AbstractUser):
     class Role(models.TextChoices):
@@ -75,6 +78,35 @@ class StockBatch(models.Model):
         if self.expiry_date <= today + timedelta(days=AGEING_THRESHOLD_DAYS):
             return self.STATUS_AGEING
         return self.STATUS_FRESH
+
+
+class StockDisposal(models.Model):
+    """Audit record of expired stock written off a batch.
+
+    Disposal never deletes the batch: it decrements the batch's quantity and
+    leaves this row behind, so the write-off history survives. Both FKs are
+    PROTECT for the same reason — a batch or a user with disposals against it
+    cannot be deleted out from under the audit trail.
+    """
+
+    class Reason(models.TextChoices):
+        EXPIRED = "expired", "Expired"
+        SPOILED = "spoiled", "Spoiled"
+        DAMAGED = "damaged", "Damaged"
+        OTHER = "other", "Other"
+
+    batch = models.ForeignKey(StockBatch, on_delete=models.PROTECT, related_name="disposals")
+    quantity = models.PositiveIntegerField()
+    reason = models.CharField(max_length=10, choices=Reason.choices, default=Reason.EXPIRED)
+    notes = models.TextField(blank=True)
+    disposed_at = models.DateTimeField(auto_now_add=True)
+    disposed_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="disposals")
+
+    class Meta:
+        ordering = ["-disposed_at", "-id"]
+
+    def __str__(self):
+        return f"{self.batch.product.name} × {self.quantity} disposed ({self.reason})"
 
 
 class Customer(models.Model):

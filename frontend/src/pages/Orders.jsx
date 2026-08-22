@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { api, apiErrorMessage } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 import {
@@ -94,7 +94,7 @@ function NewOrderForm({ customers, products, onDone, onCancel }) {
                   type="button"
                   onClick={() => setItems((prev) => prev.filter((_, i) => i !== index))}
                   disabled={items.length === 1}
-                  className="rounded-lg px-2 py-1 text-slate-400 hover:text-red-600 disabled:opacity-30"
+                  className="rounded-lg px-2 py-1 text-empty hover:text-expired disabled:opacity-30"
                   title="Remove item"
                 >
                   ✕
@@ -107,7 +107,7 @@ function NewOrderForm({ customers, products, onDone, onCancel }) {
             onClick={() =>
               setItems((prev) => [...prev, { product: products[0]?.id ?? '', quantity: 1 }])
             }
-            className="mt-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+            className="mt-2 text-sm font-medium text-info hover:text-blue-700"
           >
             + Add item
           </button>
@@ -176,12 +176,12 @@ function OrderRow({ order, isOwner, onTransition }) {
               <Link
                 to="/invoices"
                 state={{ highlightOrder: order.id }}
-                className="text-sm font-medium text-blue-600 hover:text-blue-700"
+                className="text-sm font-medium text-info hover:text-blue-700"
               >
                 View invoice →
               </Link>
             ) : (
-              <span className="text-sm text-slate-400">Invoice generated</span>
+              <span className="text-sm text-slate-500">Invoice generated</span>
             ))}
         </Td>
       </tr>
@@ -202,7 +202,10 @@ export default function Orders() {
   const [customers, setCustomers] = useState([])
   const [products, setProducts] = useState([])
   const [error, setError] = useState('')
-  const [showForm, setShowForm] = useState(false)
+  // The Dashboard's "Create order" quick action opens the form on arrival.
+  const [showForm, setShowForm] = useState(
+    Boolean(useLocation().state?.openOrderForm),
+  )
 
   const load = useCallback(() => {
     return Promise.all([api.get('/orders/'), api.get('/customers/'), api.get('/products/')])
@@ -273,7 +276,7 @@ export default function Orders() {
               ))}
               {orders.length === 0 && (
                 <tr>
-                  <Td className="py-8 text-center text-slate-400" colSpan={7}>
+                  <Td className="py-8 text-center text-empty" colSpan={7}>
                     No orders yet.
                   </Td>
                 </tr>

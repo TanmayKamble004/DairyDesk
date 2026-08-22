@@ -1,23 +1,30 @@
 """API views (spec section 4)."""
 from django.db import transaction
-from django.utils import timezone
-from rest_framework import mixins, viewsets
+from rest_framework import mixins, status, viewsets
+from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .models import Customer, Invoice, Order, Product, StockBatch, User
+from .models import Customer, Invoice, Order, Product, StockBatch, StockDisposal
 from .permissions import IsOwner
 from .serializers import (
     CustomerSerializer,
+    DisposeStockSerializer,
     InvoiceSerializer,
     LoginSerializer,
     OrderSerializer,
     OrderStatusSerializer,
     ProductSerializer,
     StockBatchSerializer,
+    StockDisposalSerializer,
 )
-from .services import ensure_invoice
+from .services import (
+    dashboard_data,
+    dispose_batch,
+    ensure_invoice,
+    resolve_date_range,
+)
 
 STATUS_SEVERITY = [StockBatch.STATUS_EXPIRED, StockBatch.STATUS_AGEING, StockBatch.STATUS_FRESH]
 
@@ -43,6 +50,30 @@ class StockBatchViewSet(
 
     queryset = StockBatch.objects.select_related("product")
     serializer_class = StockBatchSerializer
+
+    @action(detail=True, methods=["post"], url_path="dispose")
+    def dispose(self, request, pk=None):
+        """POST /api/stock-batches/{id}/dispose/ — write off expired stock."""
+        batch = self.get_object()
+        serializer = DisposeStockSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        disposal = dispose_batch(
+            batch_id=batch.pk,
+            quantity=serializer.validated_data["quantity"],
+            reason=serializer.validated_data["reason"],
+            notes=serializer.validated_data["notes"],
+            user=request.user,
+        )
+        return Response(
+            StockDisposalSerializer(disposal).data, status=status.HTTP_201_CREATED
+        )
+
+
+class StockDisposalViewSet(viewsets.ReadOnlyModelViewSet):
+    """Disposal history. Write-offs happen through the batch's dispose action."""
+
+    queryset = StockDisposal.objects.select_related("batch__product", "disposed_by")
+    serializer_class = StockDisposalSerializer
 
 
 class CustomerViewSet(
@@ -84,8 +115,15 @@ class InvoiceViewSet(viewsets.ReadOnlyModelViewSet):
 class InventoryView(APIView):
     """Per-product stock summary consumed by the 3D shelf.
 
-    Batches that were fully deducted (quantity 0) are ignored; expired batches
-    are counted but excluded from available quantity and nearest expiry.
+    Only batches with quantity > 0 are active stock: a batch that was fully
+    deducted by an order or fully written off by a disposal drops out of every
+    figure here, including the expired counts and the crate heights on the
+    shelf. Disposals therefore need no special handling — they shrink
+    StockBatch.quantity, and a zero-quantity batch is simply skipped.
+
+    Expired batches that still hold stock are counted (so the shelf shows red)
+    and reported as `expired_quantity`, the amount awaiting disposal, but they
+    never contribute to available quantity or nearest expiry.
     """
 
     def get(self, request):
@@ -93,13 +131,16 @@ class InventoryView(APIView):
         for product in Product.objects.prefetch_related("batches"):
             counts = {"fresh": 0, "ageing": 0, "expired": 0}
             available = 0
+            expired_quantity = 0
             nearest_expiry = None
             for batch in product.batches.all():
                 if batch.quantity == 0:
                     continue
                 status = batch.expiry_status
                 counts[status] += 1
-                if status != StockBatch.STATUS_EXPIRED:
+                if status == StockBatch.STATUS_EXPIRED:
+                    expired_quantity += batch.quantity
+                else:
                     available += batch.quantity
                     if nearest_expiry is None or batch.expiry_date < nearest_expiry:
                         nearest_expiry = batch.expiry_date
@@ -111,6 +152,7 @@ class InventoryView(APIView):
                     "category": product.category,
                     "unit": product.unit,
                     "available_quantity": available,
+                    "expired_quantity": expired_quantity,
                     "batch_counts": counts,
                     "worst_status": worst_status,
                     "nearest_expiry": nearest_expiry,
@@ -120,44 +162,17 @@ class InventoryView(APIView):
 
 
 class DashboardView(APIView):
-    """KPI object for the dashboard. Financial KPIs are included for owners only."""
+    """KPIs and summary lists. Financial data is included for owners only.
+
+    Supports `?range=today|7d|30d` or a custom `?start=&end=` pair; the range
+    scopes the sales, order and disposal figures. Stock figures are always
+    "right now" — a shelf doesn't have a date range.
+    """
 
     def get(self, request):
-        today = timezone.localdate()
-
-        products_ageing = set()
-        products_expired = set()
-        stock_value = 0
-        for batch in StockBatch.objects.filter(quantity__gt=0).select_related("product"):
-            status = batch.expiry_status
-            if status == StockBatch.STATUS_AGEING:
-                products_ageing.add(batch.product_id)
-            elif status == StockBatch.STATUS_EXPIRED:
-                products_expired.add(batch.product_id)
-            if status != StockBatch.STATUS_EXPIRED:
-                stock_value += batch.quantity * batch.product.selling_price
-
-        todays_orders = Order.objects.filter(created_at__date=today)
-
-        data = {}
-        is_owner = getattr(request.user, "role", None) == User.Role.OWNER
-        if is_owner:
-            # Available stock valued at selling price (non-expired batches only).
-            data["total_available_stock_value"] = str(stock_value)
-        data["products_ageing_count"] = len(products_ageing)
-        data["products_expired_count"] = len(products_expired)
-        data["todays_order_count"] = todays_orders.count()
-        if is_owner:
-            sales_total = sum(
-                (
-                    item.line_total
-                    for order in todays_orders.prefetch_related("items")
-                    for item in order.items.all()
-                ),
-                0,
-            )
-            data["todays_sales_total"] = str(sales_total)
-            data["unpaid_invoice_count"] = Invoice.objects.exclude(
-                status=Invoice.Status.PAID
-            ).count()
-        return Response(data)
+        date_range = resolve_date_range(
+            request.query_params.get("range"),
+            request.query_params.get("start"),
+            request.query_params.get("end"),
+        )
+        return Response(dashboard_data(user=request.user, date_range=date_range))
