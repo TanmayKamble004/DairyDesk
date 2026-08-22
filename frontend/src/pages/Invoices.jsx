@@ -42,7 +42,7 @@ export default function Invoices() {
                 <tr
                   key={inv.id}
                   className={
-                    inv.order === highlightOrder ? 'bg-blue-50' : 'hover:bg-slate-50'
+                    inv.order === highlightOrder ? 'bg-info-soft' : 'hover:bg-slate-50'
                   }
                 >
                   <Td className="font-medium text-slate-800">#{inv.id}</Td>
@@ -57,7 +57,7 @@ export default function Invoices() {
               ))}
               {invoices.length === 0 && (
                 <tr>
-                  <Td className="py-8 text-center text-slate-400" colSpan={6}>
+                  <Td className="py-8 text-center text-empty" colSpan={6}>
                     No invoices yet — deliver an order to generate one.
                   </Td>
                 </tr>

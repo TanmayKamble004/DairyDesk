@@ -12,6 +12,7 @@ from .models import (
     OrderItem,
     Product,
     StockBatch,
+    StockDisposal,
     User,
 )
 
@@ -77,6 +78,19 @@ class StockBatchAdmin(admin.ModelAdmin):
     @admin.display(description="Expiry status")
     def expiry_status(self, obj):
         return obj.expiry_status
+
+
+@admin.register(StockDisposal)
+class StockDisposalAdmin(admin.ModelAdmin):
+    list_display = ["id", "batch", "quantity", "reason", "disposed_at", "disposed_by"]
+    list_filter = ["reason", "disposed_at", "disposed_by"]
+    search_fields = ["batch__product__name", "notes"]
+    date_hierarchy = "disposed_at"
+    # Disposals are an audit trail — read-only once written.
+    readonly_fields = ["batch", "quantity", "reason", "notes", "disposed_at", "disposed_by"]
+
+    def has_add_permission(self, request):
+        return False
 
 
 @admin.register(Customer)

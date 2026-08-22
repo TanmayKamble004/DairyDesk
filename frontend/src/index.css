@@ -1,1 +1,39 @@
 @import "tailwindcss";
+
+/* DairyDesk palette — one source of truth for the whole UI.
+   Most values line up with Tailwind's own slate/blue/emerald/amber/red
+   scales; naming them semantically keeps intent visible at the call site
+   (bg-fresh-soft reads better than bg-emerald-50) and makes a future
+   re-skin a one-file change. */
+@theme {
+  /* Surfaces */
+  --color-canvas: #f8fafc; /* page background */
+  --color-shell: #0f172a; /* navbar / deep navy chrome */
+  --color-shell-soft: #1e293b; /* navbar hover */
+
+  /* Inventory + system status: solid, soft background, readable ink */
+  --color-fresh: #059669;
+  --color-fresh-soft: #ecfdf5;
+  --color-fresh-ink: #065f46;
+
+  --color-ageing: #d97706;
+  --color-ageing-soft: #fffbeb;
+  --color-ageing-ink: #92400e;
+
+  --color-expired: #dc2626;
+  --color-expired-soft: #fef2f2;
+  --color-expired-ink: #991b1b;
+
+  --color-info: #2563eb;
+  --color-info-soft: #eff6ff;
+  --color-info-ink: #1e40af;
+
+  /* Nothing in stock / not applicable */
+  --color-empty: #94a3b8;
+}
+
+/* Consistent focus treatment for keyboard users across every control. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+}

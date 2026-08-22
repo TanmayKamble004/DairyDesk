@@ -2,8 +2,10 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 
 const linkClass = ({ isActive }) =>
-  `rounded-lg px-3 py-1.5 text-sm font-medium ${
-    isActive ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+  `rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+    isActive
+      ? 'bg-info text-white shadow-sm'
+      : 'text-slate-300 hover:bg-shell-soft hover:text-white'
   }`
 
 export default function Layout() {
@@ -16,12 +18,14 @@ export default function Layout() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <nav className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
+    <div className="min-h-screen bg-canvas">
+      <nav className="bg-shell shadow-sm" aria-label="Main">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-3">
           <div className="flex items-center gap-6">
-            <span className="text-lg font-bold text-slate-800">🥛 DairyDesk</span>
-            <div className="flex items-center gap-1">
+            <span className="text-lg font-bold tracking-tight text-white">
+              <span aria-hidden="true">🥛</span> DairyDesk
+            </span>
+            <div className="flex flex-wrap items-center gap-1">
               <NavLink to="/" end className={linkClass}>
                 Dashboard
               </NavLink>
@@ -39,15 +43,15 @@ export default function Layout() {
             </div>
           </div>
           <div className="flex items-center gap-3 text-sm">
-            <span className="text-slate-600">
+            <span className="text-slate-300">
               {user?.username}
-              <span className="ml-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-xs capitalize text-slate-500">
+              <span className="ml-1.5 rounded-full bg-shell-soft px-2 py-0.5 text-xs capitalize text-slate-300">
                 {user?.role}
               </span>
             </span>
             <button
               onClick={handleLogout}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
+              className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm font-medium text-slate-200 transition-colors hover:bg-shell-soft hover:text-white"
             >
               Log out
             </button>

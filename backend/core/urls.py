@@ -8,6 +8,7 @@ from . import views
 router = DefaultRouter()
 router.register("products", views.ProductViewSet, basename="product")
 router.register("stock-batches", views.StockBatchViewSet, basename="stockbatch")
+router.register("stock-disposals", views.StockDisposalViewSet, basename="stockdisposal")
 router.register("customers", views.CustomerViewSet, basename="customer")
 router.register("orders", views.OrderViewSet, basename="order")
 router.register("invoices", views.InvoiceViewSet, basename="invoice")

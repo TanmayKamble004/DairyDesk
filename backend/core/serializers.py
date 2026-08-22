@@ -3,7 +3,15 @@ from django.db import transaction
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from .models import Customer, Invoice, Order, OrderItem, Product, StockBatch
+from .models import (
+    Customer,
+    Invoice,
+    Order,
+    OrderItem,
+    Product,
+    StockBatch,
+    StockDisposal,
+)
 from .services import deduct_stock_fifo
 
 # Allowed forward moves; re-submitting the current status is a no-op.
@@ -48,6 +56,43 @@ class StockBatchSerializer(serializers.ModelSerializer):
             "received_date",
             "expiry_status",
         ]
+
+
+class StockDisposalSerializer(serializers.ModelSerializer):
+    """Read shape for disposal history."""
+
+    product_name = serializers.CharField(source="batch.product.name", read_only=True)
+    disposed_by_username = serializers.CharField(
+        source="disposed_by.username", read_only=True
+    )
+
+    class Meta:
+        model = StockDisposal
+        fields = [
+            "id",
+            "batch",
+            "product_name",
+            "quantity",
+            "reason",
+            "notes",
+            "disposed_at",
+            "disposed_by",
+            "disposed_by_username",
+        ]
+
+
+class DisposeStockSerializer(serializers.Serializer):
+    """Write shape for POST /api/stock-batches/{id}/dispose/.
+
+    Shape-level validation only — the expiry and stock-on-hand rules live in
+    services.dispose_batch, which re-checks the quantity under a row lock.
+    """
+
+    quantity = serializers.IntegerField(min_value=1)
+    reason = serializers.ChoiceField(
+        choices=StockDisposal.Reason.choices, default=StockDisposal.Reason.EXPIRED
+    )
+    notes = serializers.CharField(required=False, allow_blank=True, default="")
 
 
 class CustomerSerializer(serializers.ModelSerializer):
