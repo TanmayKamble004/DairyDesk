@@ -6,8 +6,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .models import Customer, Invoice, Order, Product, StockBatch, User
-from .permissions import IsOwner
+from .models import Customer, Invoice, Order, Product, StockBatch
+from .permissions import IsOwner, is_owner
 from .serializers import (
     CustomerSerializer,
     InvoiceSerializer,
@@ -140,14 +140,14 @@ class DashboardView(APIView):
         todays_orders = Order.objects.filter(created_at__date=today)
 
         data = {}
-        is_owner = getattr(request.user, "role", None) == User.Role.OWNER
-        if is_owner:
+        viewer_is_owner = is_owner(request.user)
+        if viewer_is_owner:
             # Available stock valued at selling price (non-expired batches only).
             data["total_available_stock_value"] = str(stock_value)
         data["products_ageing_count"] = len(products_ageing)
         data["products_expired_count"] = len(products_expired)
         data["todays_order_count"] = todays_orders.count()
-        if is_owner:
+        if viewer_is_owner:
             sales_total = sum(
                 (
                     item.line_total

@@ -4,6 +4,7 @@ from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from .models import Customer, Invoice, Order, OrderItem, Product, StockBatch
+from .permissions import is_owner
 from .services import deduct_stock_fifo
 
 # Allowed forward moves; re-submitting the current status is a no-op.
@@ -48,6 +49,19 @@ class StockBatchSerializer(serializers.ModelSerializer):
             "received_date",
             "expiry_status",
         ]
+
+    def to_representation(self, batch):
+        """Hide the factory buying price from everyone but the owner.
+
+        Staff still POST `purchase_price` when receiving stock, but must never
+        be able to read cost data back — otherwise a single GET on this
+        endpoint exposes the margin on every product (spec section 4).
+        """
+        data = super().to_representation(batch)
+        request = self.context.get("request")
+        if not is_owner(getattr(request, "user", None)):
+            data.pop("purchase_price", None)
+        return data
 
 
 class CustomerSerializer(serializers.ModelSerializer):
