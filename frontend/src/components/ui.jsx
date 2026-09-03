@@ -2,8 +2,8 @@
 
 export function Spinner({ label = 'Loading…' }) {
   return (
-    <div className="flex items-center gap-3 py-10 justify-center text-slate-500">
-      <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+    <div className="flex items-center gap-3 py-10 justify-center text-muted">
+      <span className="h-5 w-5 animate-spin rounded-full border-2 border-line border-t-brand" />
       {label}
     </div>
   )
@@ -12,10 +12,20 @@ export function Spinner({ label = 'Loading…' }) {
 export function ErrorAlert({ message, onDismiss }) {
   if (!message) return null
   return (
-    <div className="flex items-start justify-between gap-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
-      <span>{message}</span>
+    <div
+      role="alert"
+      className="flex items-start justify-between gap-4 rounded-lg border border-expired/40 bg-expired-soft px-4 py-3 text-sm text-expired-ink"
+    >
+      <span className="flex items-start gap-2">
+        <span aria-hidden="true">⚠</span>
+        <span>{message}</span>
+      </span>
       {onDismiss && (
-        <button onClick={onDismiss} className="font-bold text-red-400 hover:text-red-600">
+        <button
+          onClick={onDismiss}
+          aria-label="Dismiss error"
+          className="font-bold text-expired-ink/80 hover:text-expired-ink"
+        >
           ×
         </button>
       )}
@@ -23,26 +33,52 @@ export function ErrorAlert({ message, onDismiss }) {
   )
 }
 
+export function InfoNote({ children }) {
+  return (
+    <div className="rounded-lg border border-brand/30 bg-info-soft px-4 py-3 text-sm text-info-ink">
+      {children}
+    </div>
+  )
+}
+
+// Each status carries a light background, readable text and a dot colour, so
+// the meaning never rests on hue alone — the label and dot travel together.
 const BADGE_STYLES = {
   // Expiry statuses
-  fresh: 'bg-green-100 text-green-700',
-  ageing: 'bg-amber-100 text-amber-700',
-  expired: 'bg-red-100 text-red-700',
+  fresh: 'bg-fresh-soft text-fresh-ink',
+  ageing: 'bg-ageing-soft text-ageing-ink',
+  expired: 'bg-expired-soft text-expired-ink',
   // Order statuses
-  pending: 'bg-slate-100 text-slate-600',
-  processed: 'bg-blue-100 text-blue-700',
-  delivered: 'bg-green-100 text-green-700',
+  pending: 'bg-neutral-soft text-neutral-ink',
+  processed: 'bg-info-soft text-info-ink',
+  delivered: 'bg-fresh-soft text-fresh-ink',
   // Invoice statuses
-  unpaid: 'bg-red-100 text-red-700',
-  partial: 'bg-amber-100 text-amber-700',
-  paid: 'bg-green-100 text-green-700',
+  unpaid: 'bg-expired-soft text-expired-ink',
+  partial: 'bg-ageing-soft text-ageing-ink',
+  paid: 'bg-fresh-soft text-fresh-ink',
+}
+
+const BADGE_DOTS = {
+  fresh: 'bg-fresh',
+  ageing: 'bg-ageing',
+  expired: 'bg-expired',
+  pending: 'bg-empty',
+  processed: 'bg-brand',
+  delivered: 'bg-fresh',
+  unpaid: 'bg-expired',
+  partial: 'bg-ageing',
+  paid: 'bg-fresh',
 }
 
 export function Badge({ value }) {
-  if (!value) return <span className="text-slate-400">—</span>
-  const style = BADGE_STYLES[value] ?? 'bg-slate-100 text-slate-600'
+  if (!value) return <span className="text-muted">—</span>
+  const style = BADGE_STYLES[value] ?? 'bg-neutral-soft text-neutral-ink'
+  const dot = BADGE_DOTS[value] ?? 'bg-empty'
   return (
-    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${style}`}>
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${style}`}
+    >
+      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} aria-hidden="true" />
       {value}
     </span>
   )
@@ -51,23 +87,29 @@ export function Badge({ value }) {
 export function PageHeader({ title, children }) {
   return (
     <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-      <h1 className="text-2xl font-semibold text-slate-800">{title}</h1>
+      <h1 className="text-2xl font-semibold text-ink">{title}</h1>
       {children}
     </div>
   )
 }
 
-export function Card({ children, className = '' }) {
+/**
+ * `bg` and `border` are props rather than something you pass through
+ * `className`, because an appended `bg-*` utility does not reliably beat the
+ * default one — same specificity means stylesheet order decides, not class
+ * order, so a status-tinted card would silently stay white.
+ */
+export function Card({ children, className = '', bg = 'bg-surface', border = 'border-line' }) {
   return (
-    <div className={`rounded-xl border border-slate-200 bg-white shadow-sm ${className}`}>
-      {children}
-    </div>
+    <div className={`rounded-xl border ${border} ${bg} shadow-sm ${className}`}>{children}</div>
   )
 }
 
 export function Th({ children, className = '' }) {
   return (
-    <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 ${className}`}>
+    <th
+      className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted ${className}`}
+    >
       {children}
     </th>
   )
@@ -75,17 +117,34 @@ export function Th({ children, className = '' }) {
 
 export function Td({ children, className = '', ...rest }) {
   return (
-    <td className={`px-4 py-3 text-sm text-slate-700 ${className}`} {...rest}>
+    <td className={`px-4 py-3 text-sm text-ink ${className}`} {...rest}>
       {children}
     </td>
   )
 }
 
+/** Empty table body — a neutral icon plus a sentence, never a bare dash. */
+export function EmptyRow({ colSpan, title, detail }) {
+  return (
+    <tr>
+      <td colSpan={colSpan} className="px-4 py-10 text-center">
+        {/* Decorative glyph — carries the empty/no-stock hue; the sentence
+            below it does the reading, so this needs no text contrast. */}
+        <div className="text-2xl text-empty" aria-hidden="true">
+          ∅
+        </div>
+        <div className="mt-1 text-sm font-medium text-muted">{title}</div>
+        {detail && <div className="mt-0.5 text-xs text-muted">{detail}</div>}
+      </td>
+    </tr>
+  )
+}
+
 export const inputClass =
-  'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500'
+  'w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand'
 
 export const buttonPrimary =
-  'rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50'
+  'rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50'
 
 export const buttonSecondary =
-  'rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50'
+  'rounded-lg border border-line bg-surface px-4 py-2 text-sm font-medium text-ink hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50'

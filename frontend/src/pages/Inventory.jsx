@@ -3,6 +3,7 @@ import { api, apiErrorMessage } from '../api/client'
 import {
   Badge,
   Card,
+  EmptyRow,
   ErrorAlert,
   PageHeader,
   Spinner,
@@ -43,10 +44,10 @@ function ReceiveStockForm({ products, onDone, onCancel }) {
 
   return (
     <Card className="p-5">
-      <h2 className="mb-4 text-lg font-semibold text-slate-800">Receive stock</h2>
+      <h2 className="mb-4 text-lg font-semibold text-ink">Receive stock</h2>
       <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Product</label>
+          <label className="mb-1 block text-sm font-medium text-ink">Product</label>
           <select className={inputClass} value={form.product} onChange={set('product')} required>
             {products.map((p) => (
               <option key={p.id} value={p.id}>
@@ -56,7 +57,7 @@ function ReceiveStockForm({ products, onDone, onCancel }) {
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Quantity</label>
+          <label className="mb-1 block text-sm font-medium text-ink">Quantity</label>
           <input
             type="number"
             min="1"
@@ -67,7 +68,7 @@ function ReceiveStockForm({ products, onDone, onCancel }) {
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Purchase price</label>
+          <label className="mb-1 block text-sm font-medium text-ink">Purchase price</label>
           <input
             type="number"
             min="0"
@@ -79,7 +80,7 @@ function ReceiveStockForm({ products, onDone, onCancel }) {
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Expiry date</label>
+          <label className="mb-1 block text-sm font-medium text-ink">Expiry date</label>
           <input
             type="date"
             className={inputClass}
@@ -89,7 +90,7 @@ function ReceiveStockForm({ products, onDone, onCancel }) {
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Received date</label>
+          <label className="mb-1 block text-sm font-medium text-ink">Received date</label>
           <input
             type="date"
             className={inputClass}
@@ -162,20 +163,20 @@ export default function Inventory() {
       {rows && (
         <Card className="overflow-x-auto">
           <table className="w-full">
-            <thead className="border-b border-slate-200 bg-slate-50">
+            <thead className="border-b border-line bg-surface-muted">
               <tr>
                 <Th>Product</Th>
                 <Th>Category</Th>
                 <Th className="text-right">Available</Th>
                 <Th>Status</Th>
-                <Th>Batches (F / A / E)</Th>
+                <Th>Batches (fresh / ageing / expired)</Th>
                 <Th>Nearest expiry</Th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-line">
               {rows.map((row) => (
-                <tr key={row.id} className="hover:bg-slate-50">
-                  <Td className="font-medium text-slate-800">{row.name}</Td>
+                <tr key={row.id} className="hover:bg-surface-muted">
+                  <Td className="font-medium text-ink">{row.name}</Td>
                   <Td className="capitalize">{row.category}</Td>
                   <Td className="text-right tabular-nums">
                     {row.available_quantity} {row.unit}
@@ -183,22 +184,30 @@ export default function Inventory() {
                   <Td>
                     <Badge value={row.worst_status} />
                   </Td>
+                  {/* Counts are titled as well as coloured, so the split reads
+                      without relying on the three hues. */}
                   <Td className="tabular-nums">
-                    <span className="text-green-600">{row.batch_counts.fresh}</span>
-                    {' / '}
-                    <span className="text-amber-600">{row.batch_counts.ageing}</span>
-                    {' / '}
-                    <span className="text-red-600">{row.batch_counts.expired}</span>
+                    <span className="font-medium text-fresh-ink" title="Fresh batches">
+                      {row.batch_counts.fresh}
+                    </span>
+                    <span className="text-muted">{' / '}</span>
+                    <span className="font-medium text-ageing-ink" title="Ageing batches">
+                      {row.batch_counts.ageing}
+                    </span>
+                    <span className="text-muted">{' / '}</span>
+                    <span className="font-medium text-expired-ink" title="Expired batches">
+                      {row.batch_counts.expired}
+                    </span>
                   </Td>
-                  <Td>{row.nearest_expiry ?? '—'}</Td>
+                  <Td>{row.nearest_expiry ?? <span className="text-muted">—</span>}</Td>
                 </tr>
               ))}
               {rows.length === 0 && (
-                <tr>
-                  <Td className="py-8 text-center text-slate-400" colSpan={6}>
-                    No products yet.
-                  </Td>
-                </tr>
+                <EmptyRow
+                  colSpan={6}
+                  title="No products yet"
+                  detail="Receive stock to start tracking inventory."
+                />
               )}
             </tbody>
           </table>

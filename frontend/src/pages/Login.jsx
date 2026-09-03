@@ -28,13 +28,13 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-      <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
-        <h1 className="text-center text-2xl font-bold text-slate-800">🥛 DairyDesk</h1>
-        <p className="mt-1 text-center text-sm text-slate-500">Sign in to continue</p>
+    <div className="flex min-h-screen items-center justify-center bg-canvas px-4 py-8">
+      <div className="w-full max-w-sm rounded-xl border border-line bg-surface p-6 shadow-sm sm:p-8">
+        <h1 className="text-center text-2xl font-bold text-ink">🥛 DairyDesk</h1>
+        <p className="mt-1 text-center text-sm text-muted">Sign in to continue</p>
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <div>
-            <label htmlFor="username" className="mb-1 block text-sm font-medium text-slate-700">
+            <label htmlFor="username" className="mb-1 block text-sm font-medium text-ink">
               Username
             </label>
             <input
@@ -48,7 +48,7 @@ export default function Login() {
             />
           </div>
           <div>
-            <label htmlFor="password" className="mb-1 block text-sm font-medium text-slate-700">
+            <label htmlFor="password" className="mb-1 block text-sm font-medium text-ink">
               Password
             </label>
             <input

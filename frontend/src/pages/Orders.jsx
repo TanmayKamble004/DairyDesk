@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthContext'
 import {
   Badge,
   Card,
+  EmptyRow,
   ErrorAlert,
   PageHeader,
   Spinner,
@@ -47,10 +48,10 @@ function NewOrderForm({ customers, products, onDone, onCancel }) {
 
   return (
     <Card className="p-5">
-      <h2 className="mb-4 text-lg font-semibold text-slate-800">New order</h2>
+      <h2 className="mb-4 text-lg font-semibold text-ink">New order</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="max-w-xs">
-          <label className="mb-1 block text-sm font-medium text-slate-700">Customer</label>
+          <label className="mb-1 block text-sm font-medium text-ink">Customer</label>
           <select
             className={inputClass}
             value={customer}
@@ -66,7 +67,7 @@ function NewOrderForm({ customers, products, onDone, onCancel }) {
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Items</label>
+          <label className="mb-1 block text-sm font-medium text-ink">Items</label>
           <div className="space-y-2">
             {items.map((item, index) => (
               <div key={index} className="flex items-center gap-2">
@@ -94,7 +95,7 @@ function NewOrderForm({ customers, products, onDone, onCancel }) {
                   type="button"
                   onClick={() => setItems((prev) => prev.filter((_, i) => i !== index))}
                   disabled={items.length === 1}
-                  className="rounded-lg px-2 py-1 text-slate-400 hover:text-red-600 disabled:opacity-30"
+                  className="rounded-lg px-2 py-1 text-muted hover:text-expired disabled:opacity-30"
                   title="Remove item"
                 >
                   ✕
@@ -107,7 +108,7 @@ function NewOrderForm({ customers, products, onDone, onCancel }) {
             onClick={() =>
               setItems((prev) => [...prev, { product: products[0]?.id ?? '', quantity: 1 }])
             }
-            className="mt-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+            className="mt-2 text-sm font-medium text-brand hover:text-brand-hover"
           >
             + Add item
           </button>
@@ -147,8 +148,8 @@ function OrderRow({ order, isOwner, onTransition }) {
 
   return (
     <>
-      <tr className="hover:bg-slate-50">
-        <Td className="font-medium text-slate-800">#{order.id}</Td>
+      <tr className="hover:bg-surface-muted">
+        <Td className="font-medium text-ink">#{order.id}</Td>
         <Td>{order.customer_name}</Td>
         <Td>
           <ul className="space-y-0.5">
@@ -176,12 +177,12 @@ function OrderRow({ order, isOwner, onTransition }) {
               <Link
                 to="/invoices"
                 state={{ highlightOrder: order.id }}
-                className="text-sm font-medium text-blue-600 hover:text-blue-700"
+                className="text-sm font-medium text-brand hover:text-brand-hover"
               >
                 View invoice →
               </Link>
             ) : (
-              <span className="text-sm text-slate-400">Invoice generated</span>
+              <span className="text-sm text-muted">Invoice generated</span>
             ))}
         </Td>
       </tr>
@@ -251,7 +252,7 @@ export default function Orders() {
       {orders && (
         <Card className="overflow-x-auto">
           <table className="w-full">
-            <thead className="border-b border-slate-200 bg-slate-50">
+            <thead className="border-b border-line bg-surface-muted">
               <tr>
                 <Th>Order</Th>
                 <Th>Customer</Th>
@@ -262,7 +263,7 @@ export default function Orders() {
                 <Th>Actions</Th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-line">
               {orders.map((order) => (
                 <OrderRow
                   key={order.id}
@@ -272,11 +273,11 @@ export default function Orders() {
                 />
               ))}
               {orders.length === 0 && (
-                <tr>
-                  <Td className="py-8 text-center text-slate-400" colSpan={7}>
-                    No orders yet.
-                  </Td>
-                </tr>
+                <EmptyRow
+                  colSpan={7}
+                  title="No orders yet"
+                  detail="Create an order to see it listed here."
+                />
               )}
             </tbody>
           </table>

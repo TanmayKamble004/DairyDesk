@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { api, apiErrorMessage } from '../api/client'
-import { Badge, Card, ErrorAlert, PageHeader, Spinner, Td, Th } from '../components/ui'
+import { Badge, Card, EmptyRow, ErrorAlert, PageHeader, Spinner, Td, Th } from '../components/ui'
 
 const formatINR = (value) =>
   `₹${Number(value).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
@@ -27,7 +27,7 @@ export default function Invoices() {
       {invoices && (
         <Card className="overflow-x-auto">
           <table className="w-full">
-            <thead className="border-b border-slate-200 bg-slate-50">
+            <thead className="border-b border-line bg-surface-muted">
               <tr>
                 <Th>Invoice</Th>
                 <Th>Order</Th>
@@ -37,15 +37,17 @@ export default function Invoices() {
                 <Th>Status</Th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-line">
               {invoices.map((inv) => (
                 <tr
                   key={inv.id}
                   className={
-                    inv.order === highlightOrder ? 'bg-blue-50' : 'hover:bg-slate-50'
+                    inv.order === highlightOrder
+                      ? 'bg-info-soft text-info-ink'
+                      : 'hover:bg-surface-muted'
                   }
                 >
-                  <Td className="font-medium text-slate-800">#{inv.id}</Td>
+                  <Td className="font-medium text-ink">#{inv.id}</Td>
                   <Td>Order #{inv.order}</Td>
                   <Td>{inv.customer_name}</Td>
                   <Td className="text-right tabular-nums">{formatINR(inv.total_amount)}</Td>
@@ -56,11 +58,11 @@ export default function Invoices() {
                 </tr>
               ))}
               {invoices.length === 0 && (
-                <tr>
-                  <Td className="py-8 text-center text-slate-400" colSpan={6}>
-                    No invoices yet — deliver an order to generate one.
-                  </Td>
-                </tr>
+                <EmptyRow
+                  colSpan={6}
+                  title="No invoices yet"
+                  detail="Deliver an order to generate one."
+                />
               )}
             </tbody>
           </table>

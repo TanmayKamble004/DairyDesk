@@ -39,3 +39,6 @@ Thumbs.db
 *.backup.docx
 .$*.bkp
 .$*.dtmp
+
+# ---- Local DB dumps ----
+backup-*.sql
