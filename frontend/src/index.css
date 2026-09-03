@@ -1,1 +1,76 @@
 @import "tailwindcss";
+
+/* Tailwind v4 auto-detects sources from the project root, which sweeps in the
+   previous build's output and re-emits utilities that no longer exist in src. */
+@source not "../dist";
+
+/**
+ * DairyDesk palette. Tailwind v4 keeps its config in CSS, so every colour the
+ * app uses is registered here as a theme token and reached through the normal
+ * utilities (bg-surface, text-ink, border-line, …). Components should use these
+ * tokens rather than raw slate/blue/green scales so the scheme stays in one place.
+ */
+@theme {
+  /* Surfaces */
+  --color-canvas: #f5f7fa; /* page background */
+  --color-surface: #ffffff; /* cards, tables, panels */
+  --color-surface-muted: #f5f7fa; /* table headers, hover rows */
+  --color-nav: #1e293b; /* sidebar / navbar */
+  --color-nav-hover: #334155; /* nav hover, derived one step lighter */
+  --color-nav-ink: #e2e8f0; /* primary text on the dark nav (~12:1 on #1E293B) */
+  --color-nav-muted: #94a3b8; /* borders / secondary marks on the dark nav */
+
+  /* Brand / actions */
+  --color-brand: #3b82f6;
+  --color-brand-hover: #2563eb;
+
+  /* Text + lines */
+  --color-ink: #1f2937; /* main text */
+  --color-muted: #6b7280; /* secondary text */
+  --color-line: #e5e7eb; /* borders, dividers */
+
+  /* Status indicators (dots, 3D crates, accents) */
+  --color-fresh: #10b981;
+  --color-ageing: #f59e0b;
+  --color-expired: #ef4444;
+  --color-empty: #9ca3af; /* no stock / neutral */
+
+  /* Status surfaces — light background + readable text for badges and cards */
+  --color-fresh-soft: #ecfdf5;
+  --color-fresh-ink: #065f46;
+  --color-ageing-soft: #fffbeb;
+  --color-ageing-ink: #92400e;
+  --color-expired-soft: #fef2f2;
+  --color-expired-ink: #991b1b;
+  --color-info-soft: #eff6ff;
+  --color-info-ink: #1e40af;
+  --color-neutral-soft: #f3f4f6;
+  --color-neutral-ink: #374151;
+
+  /* Store-inventory shell (sidebar layout). Deeper than --color-nav so the
+     full-height rail reads as chrome rather than a second content surface. */
+  --color-rail: #0f1420;
+  --color-rail-soft: #171d2c;
+  --color-rail-hover: #1c2334;
+  --color-rail-ink: #e5e9f0;
+  --color-rail-muted: #8a93a6;
+
+  /* Category / severity accents used by Stock Levels and Alerts. */
+  --color-accent-green: #16a34a;
+  --color-accent-blue: #2563eb;
+  --color-accent-amber: #f59e0b;
+  --color-accent-red: #ef4444;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+  }
+
+  /* Keyboard focus is visible everywhere, including on the dark navbar. */
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+}

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DairyDesk — Inventory Management</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <!-- Mobile-only: opens the sidebar as an off-canvas drawer. -->
+    <button class="nav-toggle" id="navToggle" aria-label="Open navigation" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="scrim" id="scrim" hidden></div>
+
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"></div>
+        <div class="brand-text">
+          <div class="brand-name">DairyDesk</div>
+          <div class="brand-sub">Store inventory tracker</div>
+        </div>
+      </div>
+
+      <nav class="nav" aria-label="Pages">
+        <div class="nav-label">Pages</div>
+        <ul class="nav-list" id="navList"></ul>
+      </nav>
+
+      <div class="status-box">
+        <div class="status-line"><span class="dot dot-green"></span> System online</div>
+        <div class="status-name" id="statusStore">DairyDesk</div>
+        <div class="status-meta" id="statusMeta">Loading…</div>
+        <div id="userBox"></div>
+      </div>
+    </aside>
+
+    <main class="main" id="main" tabindex="-1"></main>
+    <div id="loginRoot"></div>
+
+    <div id="modalRoot"></div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
