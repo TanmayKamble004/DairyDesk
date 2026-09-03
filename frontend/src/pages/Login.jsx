@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { apiErrorMessage } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 import { ErrorAlert, buttonPrimary, inputClass } from '../components/ui'
+import FarmScene from '../components/login/FarmScene'
 
 export default function Login() {
   const { login } = useAuth()
@@ -28,8 +29,8 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-      <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
+    <div className="farm-shell relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-50 px-4">
+      <div className="relative z-10 w-full max-w-sm rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
         <h1 className="text-center text-2xl font-bold text-slate-800">🥛 DairyDesk</h1>
         <p className="mt-1 text-center text-sm text-slate-500">Sign in to continue</p>
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
@@ -67,6 +68,7 @@ export default function Login() {
           </button>
         </form>
       </div>
+      <FarmScene />
     </div>
   )
 }

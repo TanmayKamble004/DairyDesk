@@ -1,1 +1,211 @@
 @import "tailwindcss";
+
+/* ==========================================================================
+   Login farm scene
+   Ambient horizon band behind the sign-in card. Everything tunable lives in
+   the token blocks below — the SVG in components/login/FarmScene.jsx only
+   consumes them.
+   ========================================================================== */
+
+@theme {
+  /* Palette — six desaturated tones, ordered back to front. */
+  --color-farm-ridge-far: #e9eae4;
+  --color-farm-ridge-mid: #dde1d6;
+  --color-farm-ridge-near: #ced4c5;
+  --color-farm-structure: #a9b0a6;
+  --color-farm-figure: #8b958d;
+  --color-farm-accent: #f4f5f0;
+
+  /* Easing — intentionally none of the stock curves. */
+  --ease-farm-graze: cubic-bezier(0.62, 0.01, 0.34, 1);
+  --ease-farm-drift: cubic-bezier(0.45, 0.05, 0.35, 1);
+  --ease-farm-glide: cubic-bezier(0.33, 0.02, 0.28, 1);
+
+  /* Loops — mutually prime-ish durations so nothing ever resynchronises. */
+  --animate-farm-graze: farm-graze 13s var(--ease-farm-graze) infinite;
+  --animate-farm-graze-slow: farm-graze 17s var(--ease-farm-graze) infinite;
+  --animate-farm-drift: farm-drift 19s var(--ease-farm-drift) infinite;
+  --animate-farm-stroll: farm-stroll 20s var(--ease-farm-glide) infinite;
+  --animate-farm-sway: farm-sway 7s var(--ease-farm-drift) infinite;
+  --animate-farm-bird: farm-bird 18s var(--ease-farm-glide) infinite;
+}
+
+:root {
+  /* Single knob for scene scale: the SVG renders 1:1 against this height. */
+  --farm-band-height: 140px;
+}
+
+@media (max-width: 40rem) {
+  :root {
+    --farm-band-height: 90px;
+  }
+}
+
+/* Unlayered, so these win over the @theme defaults regardless of order.
+   Ready for whenever the app grows a dark theme. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-farm-ridge-far: #1b212a;
+    --color-farm-ridge-mid: #222a33;
+    --color-farm-ridge-near: #2a323c;
+    --color-farm-structure: #3f4a4f;
+    --color-farm-figure: #56635f;
+    --color-farm-accent: #2b333a;
+  }
+}
+
+/* --- keyframes: transform / opacity only --------------------------------- */
+
+/* cow head: dip to the grass, three slow chews, lift back up */
+@keyframes farm-graze {
+  0%,
+  10% {
+    transform: rotate(0deg);
+  }
+  26% {
+    transform: rotate(-32deg);
+  }
+  33% {
+    transform: rotate(-29.5deg);
+  }
+  40% {
+    transform: rotate(-32deg);
+  }
+  47% {
+    transform: rotate(-29.5deg);
+  }
+  56% {
+    transform: rotate(-32deg);
+  }
+  74%,
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+/* cow body: barely-there weight shift */
+@keyframes farm-drift {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(-2.5px);
+  }
+}
+
+/* farmer: crosses the near ridge, fading at both ends to hide the reset */
+@keyframes farm-stroll {
+  0% {
+    transform: translateX(0);
+    opacity: 0;
+  }
+  8% {
+    transform: translateX(12px);
+    opacity: 1;
+  }
+  92% {
+    transform: translateX(138px);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(150px);
+    opacity: 0;
+  }
+}
+
+/* farmer: carry-sway, not a walk cycle */
+@keyframes farm-sway {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-0.9deg);
+  }
+  50% {
+    transform: translateY(-1.1px) rotate(0.9deg);
+  }
+}
+
+/* bird: one arc across the sky, invisible for most of the cycle */
+@keyframes farm-bird {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  8% {
+    opacity: 0.55;
+  }
+  50% {
+    transform: translate(150px, -16px);
+  }
+  84% {
+    opacity: 0.55;
+  }
+  100% {
+    transform: translate(300px, 4px);
+    opacity: 0;
+  }
+}
+
+@layer components {
+  /* Band pinned to the bottom of the login viewport. */
+  .farm-scene {
+    height: var(--farm-band-height);
+  }
+
+  /* Reserve the band so the centred card never crowds it. */
+  @media (min-height: 40rem) {
+    .farm-shell {
+      padding-bottom: var(--farm-band-height);
+    }
+  }
+
+  /* Too little vertical room to be ambient — drop it entirely. */
+  @media (max-height: 39.9375rem) {
+    .farm-scene {
+      display: none;
+    }
+  }
+
+  /* Rotate the head about the shoulder joint, not the group's centre. */
+  .farm-cow-head {
+    transform-box: fill-box;
+    transform-origin: 95.5% 21%;
+  }
+
+  /* Offset the second cow so the two never chew in step. */
+  .farm-cow-2 {
+    animation-delay: -7s;
+  }
+
+  .farm-farmer-sway {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+  }
+
+  /* Hidden until its arc begins. */
+  .farm-bird {
+    opacity: 0;
+  }
+}
+
+/* --- reduced motion: freeze into a composed still ------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .farm-scene * {
+    animation: none !important;
+  }
+
+  /* One cow grazing, one alert, farmer mid-path, bird at the top of its arc. */
+  .farm-cow-2 .farm-cow-head {
+    transform: rotate(-32deg);
+  }
+
+  .farm-farmer {
+    transform: translateX(74px);
+    opacity: 1;
+  }
+
+  .farm-bird {
+    transform: translate(150px, -16px);
+    opacity: 0.55;
+  }
+}
