@@ -2,115 +2,142 @@
 
 /* ==========================================================================
    Login farm scene
-   Ambient horizon band behind the sign-in card. Everything tunable lives in
-   the token blocks below — the SVG in components/login/FarmScene.jsx only
+   Full-bleed pastoral background for the sign-in page. Everything tunable
+   lives in the token blocks below; components/login/FarmScene.jsx only
    consumes them.
+
+   `static` keeps every token in the output — the sky gradient and the
+   animation shorthands are referenced from plain CSS and SVG attributes
+   rather than utilities, so Tailwind's usage detection can't see them.
    ========================================================================== */
 
-@theme {
-  /* Palette — six desaturated tones, ordered back to front. */
-  --color-farm-ridge-far: #e9eae4;
-  --color-farm-ridge-mid: #dde1d6;
-  --color-farm-ridge-near: #ced4c5;
-  --color-farm-structure: #a9b0a6;
-  --color-farm-figure: #8b958d;
-  --color-farm-accent: #f4f5f0;
+@theme static {
+  /* --- palette: sky ------------------------------------------------- */
+  --color-farm-sky-top: #b3c6db;
+  --color-farm-sky-mid: #e6d4cb;
+  --color-farm-sky-low: #f8eeda;
 
-  /* Easing — intentionally none of the stock curves. */
+  /* --- palette: land, back to front (each step darker + warmer) ------ */
+  --color-farm-hill: #c2cdb0;
+  --color-farm-field: #a6b78c;
+  --color-farm-pasture: #8aa26e;
+  --color-farm-pasture-deep: #77925c;
+
+  /* --- palette: objects --------------------------------------------- */
+  --color-farm-barn: #b4644a;
+  --color-farm-cream: #f6edda;
+  --color-farm-wheat: #d8b972;
+  --color-farm-window: #e9d5ab;
+  --color-farm-figure: #55654f;
+
+  /* --- UI accent: pulled from the scene, not the app's stock blue ---- */
+  --color-farm-accent: #4c6a48;
+  --color-farm-accent-hover: #3d5839;
+
+  /* --- easing: none of the stock curves ------------------------------ */
   --ease-farm-graze: cubic-bezier(0.62, 0.01, 0.34, 1);
   --ease-farm-drift: cubic-bezier(0.45, 0.05, 0.35, 1);
-  --ease-farm-glide: cubic-bezier(0.33, 0.02, 0.28, 1);
+  --ease-farm-glide: cubic-bezier(0.4, 0.02, 0.6, 0.98);
 
-  /* Loops — mutually prime-ish durations so nothing ever resynchronises. */
-  --animate-farm-graze: farm-graze 13s var(--ease-farm-graze) infinite;
-  --animate-farm-graze-slow: farm-graze 17s var(--ease-farm-graze) infinite;
-  --animate-farm-drift: farm-drift 19s var(--ease-farm-drift) infinite;
-  --animate-farm-stroll: farm-stroll 20s var(--ease-farm-glide) infinite;
-  --animate-farm-sway: farm-sway 7s var(--ease-farm-drift) infinite;
-  --animate-farm-bird: farm-bird 18s var(--ease-farm-glide) infinite;
+  /* --- loops: durations are overridden per element further down ------ */
+  --animate-farm-graze: farm-graze 11s var(--ease-farm-graze) infinite;
+  --animate-farm-shift: farm-shift 23s var(--ease-farm-drift) infinite;
+  --animate-farm-cloud: farm-cloud 74s var(--ease-farm-drift) infinite;
+  --animate-farm-windmill: farm-windmill 20s var(--ease-farm-glide) infinite;
+  --animate-farm-stroll: farm-stroll 50s var(--ease-farm-glide) infinite;
+  --animate-farm-sway: farm-sway 6s var(--ease-farm-drift) infinite;
+  --animate-farm-bird: farm-bird 26s var(--ease-farm-glide) infinite;
 }
 
-:root {
-  /* Single knob for scene scale: the SVG renders 1:1 against this height. */
-  --farm-band-height: 140px;
-}
-
-@media (max-width: 40rem) {
-  :root {
-    --farm-band-height: 90px;
-  }
-}
-
-/* Unlayered, so these win over the @theme defaults regardless of order.
-   Ready for whenever the app grows a dark theme. */
+/* --- dusk palette: same geometry, warm lit windows ----------------------- */
+/* Unlayered, so it beats the @layer theme defaults regardless of order. */
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-farm-ridge-far: #1b212a;
-    --color-farm-ridge-mid: #222a33;
-    --color-farm-ridge-near: #2a323c;
-    --color-farm-structure: #3f4a4f;
-    --color-farm-figure: #56635f;
-    --color-farm-accent: #2b333a;
+    --color-farm-sky-top: #151a31;
+    --color-farm-sky-mid: #2b2743;
+    --color-farm-sky-low: #52405083;
+    --color-farm-hill: #242b3d;
+    --color-farm-field: #1d2533;
+    --color-farm-pasture: #18202d;
+    --color-farm-pasture-deep: #121924;
+    --color-farm-barn: #2c2433;
+    --color-farm-cream: #4a4157;
+    --color-farm-wheat: #3a3346;
+    --color-farm-window: #f2bb60;
+    --color-farm-figure: #232a39;
+    --color-farm-accent: #54754e;
+    --color-farm-accent-hover: #62855a;
   }
 }
 
-/* --- keyframes: transform / opacity only --------------------------------- */
+/* --- keyframes: transform and opacity only ------------------------------- */
 
 /* cow head: dip to the grass, three slow chews, lift back up */
 @keyframes farm-graze {
   0%,
-  10% {
+  12% {
     transform: rotate(0deg);
   }
-  26% {
-    transform: rotate(-32deg);
+  28% {
+    transform: rotate(-30deg);
   }
-  33% {
-    transform: rotate(-29.5deg);
+  36% {
+    transform: rotate(-27deg);
   }
-  40% {
-    transform: rotate(-32deg);
+  44% {
+    transform: rotate(-30deg);
   }
-  47% {
-    transform: rotate(-29.5deg);
+  52% {
+    transform: rotate(-27deg);
   }
-  56% {
-    transform: rotate(-32deg);
+  60% {
+    transform: rotate(-30deg);
   }
-  74%,
+  78%,
   100% {
     transform: rotate(0deg);
   }
 }
 
 /* cow body: barely-there weight shift */
-@keyframes farm-drift {
+@keyframes farm-shift {
   0%,
   100% {
     transform: translateX(0);
   }
   50% {
-    transform: translateX(-2.5px);
+    transform: translateX(-4px);
   }
 }
 
-/* farmer: crosses the near ridge, fading at both ends to hide the reset */
-@keyframes farm-stroll {
-  0% {
-    transform: translateX(0);
-    opacity: 0;
-  }
-  8% {
-    transform: translateX(12px);
-    opacity: 1;
-  }
-  92% {
-    transform: translateX(138px);
-    opacity: 1;
-  }
+/* clouds: a slow there-and-back, so there is never a reset to see */
+@keyframes farm-cloud {
+  0%,
   100% {
-    transform: translateX(150px);
-    opacity: 0;
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(46px);
+  }
+}
+
+/* windmill: one revolution per loop, easing gives it a faint gust */
+@keyframes farm-windmill {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* farmer: crosses the whole scene and resets off-screen, so no fade needed */
+@keyframes farm-stroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(2000px);
   }
 }
 
@@ -118,94 +145,138 @@
 @keyframes farm-sway {
   0%,
   100% {
-    transform: translateY(0) rotate(-0.9deg);
+    transform: translateY(0) rotate(-1deg);
   }
   50% {
-    transform: translateY(-1.1px) rotate(0.9deg);
+    transform: translateY(-2px) rotate(1deg);
   }
 }
 
-/* bird: one arc across the sky, invisible for most of the cycle */
+/* bird: one arc, absent for most of the cycle */
 @keyframes farm-bird {
   0% {
     transform: translate(0, 0);
     opacity: 0;
   }
-  8% {
-    opacity: 0.55;
+  10% {
+    opacity: 0.5;
   }
   50% {
-    transform: translate(150px, -16px);
+    transform: translate(560px, -54px);
   }
-  84% {
-    opacity: 0.55;
+  86% {
+    opacity: 0.5;
   }
   100% {
-    transform: translate(300px, 4px);
+    transform: translate(1120px, 16px);
     opacity: 0;
   }
 }
 
 @layer components {
-  /* Band pinned to the bottom of the login viewport. */
+  /* --- scene shell ---------------------------------------------------- */
   .farm-scene {
-    height: var(--farm-band-height);
+    animation: none;
   }
 
-  /* Reserve the band so the centred card never crowds it. */
-  @media (min-height: 40rem) {
-    .farm-shell {
-      padding-bottom: var(--farm-band-height);
-    }
+  /* --- clouds: one token, three tempos -------------------------------- */
+  .farm-cloud {
+    animation: var(--animate-farm-cloud);
+  }
+  .farm-cloud-2 {
+    animation-duration: 88s;
+    animation-delay: -22s;
+  }
+  .farm-cloud-3 {
+    animation-duration: 63s;
+    animation-delay: -40s;
   }
 
-  /* Too little vertical room to be ambient — drop it entirely. */
-  @media (max-height: 39.9375rem) {
-    .farm-scene {
-      display: none;
-    }
+  /* --- cows: timing lives here so the SVG stays pure geometry ---------- */
+  .farm-cow-body {
+    animation: var(--animate-farm-shift);
   }
 
   /* Rotate the head about the shoulder joint, not the group's centre. */
   .farm-cow-head {
     transform-box: fill-box;
-    transform-origin: 95.5% 21%;
+    transform-origin: 94.5% 21%;
+    animation: var(--animate-farm-graze);
   }
 
-  /* Offset the second cow so the two never chew in step. */
-  .farm-cow-2 {
-    animation-delay: -7s;
+  .farm-cow-far .farm-cow-head {
+    animation-duration: 9s;
+    animation-delay: -3s;
+  }
+  .farm-cow-mid .farm-cow-head {
+    animation-duration: 12.5s;
+    animation-delay: -8s;
+  }
+  .farm-cow-near .farm-cow-head {
+    animation-duration: 14s;
+    animation-delay: -1s;
+  }
+  .farm-cow-front .farm-cow-head {
+    animation-duration: 10.5s;
+    animation-delay: -6s;
+  }
+  .farm-cow-mid .farm-cow-body {
+    animation-duration: 29s;
+  }
+  .farm-cow-front .farm-cow-body {
+    animation-duration: 19s;
+    animation-delay: -9s;
   }
 
+  /* --- windmill ------------------------------------------------------- */
+  .farm-windmill-blades {
+    transform-box: fill-box;
+    transform-origin: 50% 50%;
+    animation: var(--animate-farm-windmill);
+  }
+
+  /* --- farmer --------------------------------------------------------- */
+  .farm-farmer {
+    animation: var(--animate-farm-stroll);
+  }
   .farm-farmer-sway {
     transform-box: fill-box;
     transform-origin: 50% 100%;
+    animation: var(--animate-farm-sway);
   }
 
-  /* Hidden until its arc begins. */
+  /* --- bird: hidden until its arc begins ------------------------------- */
   .farm-bird {
     opacity: 0;
+    animation: var(--animate-farm-bird);
   }
 }
 
-/* --- reduced motion: freeze into a composed still ------------------------- */
+/* --- narrow viewports: thin the pasture so the card stays legible -------- */
+@media (max-width: 47.9375rem) {
+  .farm-cow-far,
+  .farm-cow-mid,
+  .farm-farmer {
+    display: none;
+  }
+}
+
+/* --- reduced motion: freeze into a composed still ------------------------ */
 @media (prefers-reduced-motion: reduce) {
   .farm-scene * {
     animation: none !important;
   }
 
-  /* One cow grazing, one alert, farmer mid-path, bird at the top of its arc. */
-  .farm-cow-2 .farm-cow-head {
-    transform: rotate(-32deg);
+  /* Two cows grazing, two heads up, farmer mid-pasture, bird at its apex. */
+  .farm-cow-mid .farm-cow-head,
+  .farm-cow-front .farm-cow-head {
+    transform: rotate(-30deg);
   }
-
   .farm-farmer {
-    transform: translateX(74px);
-    opacity: 1;
+    transform: translateX(820px);
   }
-
   .farm-bird {
-    transform: translate(150px, -16px);
-    opacity: 0.55;
+    transform: translate(560px, -54px);
+    opacity: 0.5;
   }
 }
