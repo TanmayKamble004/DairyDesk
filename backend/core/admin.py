@@ -11,7 +11,9 @@ from .models import (
     Order,
     OrderItem,
     Product,
+    PurchaseOrder,
     StockBatch,
+    Supplier,
     User,
 )
 
@@ -26,9 +28,19 @@ class CoreUserAdmin(UserAdmin):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ["name", "category", "unit", "selling_price", "available_quantity"]
-    list_filter = ["category", "unit"]
-    search_fields = ["name", "category"]
+    list_display = [
+        "name",
+        "sku",
+        "category",
+        "supplier",
+        "unit",
+        "selling_price",
+        "reorder_threshold",
+        "reorder_quantity",
+        "available_quantity",
+    ]
+    list_filter = ["category", "unit", "supplier"]
+    search_fields = ["name", "sku", "category", "supplier__name"]
 
     @admin.display(description="Available qty")
     def available_quantity(self, obj):
@@ -77,6 +89,37 @@ class StockBatchAdmin(admin.ModelAdmin):
     @admin.display(description="Expiry status")
     def expiry_status(self, obj):
         return obj.expiry_status
+
+
+@admin.register(Supplier)
+class SupplierAdmin(admin.ModelAdmin):
+    list_display = [
+        "name",
+        "contact_person",
+        "phone",
+        "email",
+        "products_supplied",
+        "last_order_date",
+        "rating",
+    ]
+    search_fields = ["name", "contact_person", "email"]
+    list_filter = ["rating"]
+
+
+@admin.register(PurchaseOrder)
+class PurchaseOrderAdmin(admin.ModelAdmin):
+    list_display = [
+        "id",
+        "product",
+        "supplier",
+        "quantity",
+        "status",
+        "auto_generated",
+        "created_at",
+    ]
+    list_filter = ["status", "auto_generated", "supplier"]
+    search_fields = ["product__name", "supplier__name"]
+    date_hierarchy = "created_at"
 
 
 @admin.register(Customer)

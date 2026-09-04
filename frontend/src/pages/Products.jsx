@@ -1,17 +1,36 @@
-import { useMemo, useState } from 'react'
-import { Card, PageHeader, Td, Th, EmptyRow, inputClass } from '../components/ui'
-import { PRODUCTS, inr, num, statusOf } from '../data/storeMock'
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { api, apiErrorMessage } from '../api/client'
+import { useToast } from '../components/Toast'
+import {
+  AddMenu,
+  Card,
+  EmptyRow,
+  LoadFailed,
+  PageHeader,
+  Spinner,
+  Td,
+  Th,
+  inputClass,
+} from '../components/ui'
+import { inr, num } from '../data/storeMock'
+
+const STATUS_LABEL = {
+  in_stock: 'In Stock',
+  low_stock: 'Low Stock',
+  out_of_stock: 'Out of Stock',
+}
 
 const STATUS_STYLE = {
-  'In Stock': 'bg-fresh-soft text-fresh-ink',
-  'Low Stock': 'bg-ageing-soft text-ageing-ink',
-  'Out of Stock': 'bg-expired-soft text-expired-ink',
+  in_stock: 'bg-fresh-soft text-fresh-ink',
+  low_stock: 'bg-ageing-soft text-ageing-ink',
+  out_of_stock: 'bg-expired-soft text-expired-ink',
 }
 
 const STATUS_DOT = {
-  'In Stock': 'bg-fresh',
-  'Low Stock': 'bg-ageing',
-  'Out of Stock': 'bg-expired',
+  in_stock: 'bg-fresh',
+  low_stock: 'bg-ageing',
+  out_of_stock: 'bg-expired',
 }
 
 function StatusPill({ value }) {
@@ -20,7 +39,7 @@ function StatusPill({ value }) {
       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLE[value]}`}
     >
       <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT[value]}`} aria-hidden="true" />
-      {value}
+      {STATUS_LABEL[value]}
     </span>
   )
 }
@@ -41,33 +60,62 @@ function StatCard({ label, value, unit, icon }) {
 }
 
 export default function Products() {
+  const toast = useToast()
+  const [products, setProducts] = useState(null)
+  const [failed, setFailed] = useState(false)
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('all')
   const [sort, setSort] = useState({ key: 'name', dir: 'asc' })
+  const [reloads, setReloads] = useState(0)
+
+  useEffect(() => {
+    api
+      .get('/products/')
+      .then((res) => {
+        setProducts(res.data)
+        setFailed(false)
+      })
+      .catch((err) => {
+        // Toasts fade, so a failed load also leaves something on the page —
+        // otherwise the user is looking at an empty screen with no reason why.
+        setFailed(true)
+        toast.error(`Could not load products. ${apiErrorMessage(err)}`)
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reloads])
+
+  // Stable identity while loading, so the memos below don't rerun each render.
+  const list = useMemo(() => products ?? [], [products])
 
   const categories = useMemo(
-    () => [...new Set(PRODUCTS.map((p) => p.category))].sort(),
-    [],
+    () => [...new Set(list.map((p) => p.category))].sort(),
+    [list],
   )
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase()
-    const filtered = PRODUCTS.filter(
+    const filtered = list.filter(
       (p) =>
         (category === 'all' || p.category === category) &&
         (!q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)),
     )
     const dir = sort.dir === 'asc' ? 1 : -1
+    const valueOf = (p) => {
+      if (sort.key === 'value') return p.available_quantity * Number(p.selling_price)
+      if (sort.key === 'selling_price') return Number(p.selling_price)
+      // supplier_name is null on products that predate suppliers.
+      return p[sort.key] ?? ''
+    }
     return [...filtered].sort((a, b) => {
-      const av = sort.key === 'value' ? a.quantity * a.unitPrice : a[sort.key]
-      const bv = sort.key === 'value' ? b.quantity * b.unitPrice : b[sort.key]
+      const av = valueOf(a)
+      const bv = valueOf(b)
       if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir
       return String(av).localeCompare(String(bv)) * dir
     })
-  }, [search, category, sort])
+  }, [list, search, category, sort])
 
-  const avgStock = PRODUCTS.length
-    ? Math.round(PRODUCTS.reduce((s, p) => s + p.quantity, 0) / PRODUCTS.length)
+  const avgStock = list.length
+    ? Math.round(list.reduce((s, p) => s + p.available_quantity, 0) / list.length)
     : 0
 
   function toggleSort(key) {
@@ -91,82 +139,132 @@ export default function Products() {
   return (
     <>
       <PageHeader title="Products">
+        <AddMenu
+          label="Add"
+          icon="📦"
+          title="Create product"
+          description="Add a new SKU with an image and reorder levels."
+          to="/products/new"
+        />
         <p className="w-full text-sm text-muted">
           Every SKU stocked in this store, with live quantity and value.
         </p>
       </PageHeader>
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <StatCard label="Total SKUs" value={PRODUCTS.length} icon="📦" />
-        <StatCard label="Categories" value={categories.length} icon="📊" />
-        <StatCard label="Avg. Stock Level" value={avgStock} unit="units" icon="✓" />
-      </div>
+      {failed && (
+        <LoadFailed what="products" onRetry={() => setReloads((n) => n + 1)} />
+      )}
+      {!failed && !products && <Spinner />}
 
-      <Card className="overflow-hidden">
-        <div className="flex flex-wrap gap-3 border-b border-line p-4">
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by product name or SKU…"
-            aria-label="Search products"
-            className={`${inputClass} flex-1 sm:min-w-64`}
-          />
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            aria-label="Filter by category"
-            className={`${inputClass} sm:w-48`}
-          >
-            <option value="all">All categories</option>
-            {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </div>
+      {products && (
+        <>
+          <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <StatCard label="Total SKUs" value={list.length} icon="📦" />
+            <StatCard label="Categories" value={categories.length} icon="📊" />
+            <StatCard label="Avg. Stock Level" value={avgStock} unit="units" icon="✓" />
+          </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-surface-muted">
-              <tr>
-                <SortTh label="Product name" sortKey="name" />
-                <SortTh label="SKU" sortKey="sku" />
-                <SortTh label="Category" sortKey="category" />
-                <SortTh label="Quantity" sortKey="quantity" className="text-right" />
-                <SortTh label="Unit price" sortKey="unitPrice" className="text-right" />
-                <SortTh label="Total value" sortKey="value" className="text-right" />
-                <Th>Status</Th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {rows.map((p) => (
-                <tr key={p.id} className="hover:bg-surface-muted">
-                  <Td className="font-medium text-ink">{p.name}</Td>
-                  <Td className="text-muted">{p.sku}</Td>
-                  <Td>{p.category}</Td>
-                  <Td className="text-right tabular-nums">{num(p.quantity)}</Td>
-                  <Td className="text-right tabular-nums">{inr(p.unitPrice)}</Td>
-                  <Td className="text-right font-medium tabular-nums">
-                    {inr(p.quantity * p.unitPrice)}
-                  </Td>
-                  <Td>
-                    <StatusPill value={statusOf(p)} />
-                  </Td>
-                </tr>
-              ))}
-              {rows.length === 0 && (
-                <EmptyRow
-                  colSpan={7}
-                  title="No products match"
-                  detail="Try a different search term or category."
-                />
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+          <Card className="overflow-hidden">
+            <div className="flex flex-wrap gap-3 border-b border-line p-4">
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by product name or SKU…"
+                aria-label="Search products"
+                className={`${inputClass} flex-1 sm:min-w-64`}
+              />
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                aria-label="Filter by category"
+                className={`${inputClass} sm:w-48`}
+              >
+                <option value="all">All categories</option>
+                {categories.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-surface-muted">
+                  <tr>
+                    <SortTh label="Product name" sortKey="name" />
+                    <SortTh label="SKU" sortKey="sku" />
+                    <SortTh label="Category" sortKey="category" />
+                    <SortTh label="Supplier" sortKey="supplier_name" />
+                    <SortTh label="Quantity" sortKey="available_quantity" className="text-right" />
+                    <SortTh label="Reorder at" sortKey="reorder_threshold" className="text-right" />
+                    <SortTh label="Unit price" sortKey="selling_price" className="text-right" />
+                    <SortTh label="Total value" sortKey="value" className="text-right" />
+                    <Th>Status</Th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  {rows.map((p) => (
+                    <tr key={p.id} className="hover:bg-surface-muted">
+                      <Td className="font-medium text-ink">
+                        <Link
+                          to={`/products/${p.id}/edit`}
+                          className="flex items-center gap-3 hover:text-brand"
+                          title={`Edit ${p.name}`}
+                        >
+                          {p.image ? (
+                            <img
+                              src={p.image}
+                              alt=""
+                              className="h-9 w-9 shrink-0 rounded-lg border border-line object-cover"
+                            />
+                          ) : (
+                            <span
+                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-line bg-surface-muted text-xs text-empty"
+                              aria-hidden="true"
+                            >
+                              ▢
+                            </span>
+                          )}
+                          <span className="underline-offset-4 hover:underline">{p.name}</span>
+                        </Link>
+                      </Td>
+                      <Td className="text-muted">{p.sku}</Td>
+                      <Td>{p.category}</Td>
+                      <Td>
+                        {p.supplier_name ?? <span className="text-muted">Unassigned</span>}
+                      </Td>
+                      <Td className="text-right tabular-nums">{num(p.available_quantity)}</Td>
+                      <Td className="text-right tabular-nums text-muted">
+                        {num(p.reorder_threshold)}
+                      </Td>
+                      <Td className="text-right tabular-nums">{inr(p.selling_price)}</Td>
+                      <Td className="text-right font-medium tabular-nums">
+                        {inr(p.available_quantity * Number(p.selling_price))}
+                      </Td>
+                      <Td>
+                        <StatusPill value={p.stock_status} />
+                      </Td>
+                    </tr>
+                  ))}
+                  {rows.length === 0 && (
+                    <EmptyRow
+                      colSpan={9}
+                      title={list.length ? 'No products match' : 'No products yet'}
+                      detail={
+                        list.length
+                          ? 'Try a different search term or category.'
+                          : 'Use the + button to add your first SKU.'
+                      }
+                    />
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </>
+      )}
     </>
   )
 }

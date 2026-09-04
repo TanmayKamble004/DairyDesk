@@ -2,11 +2,13 @@
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import mixins, viewsets
+from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .models import Customer, Invoice, Order, Product, StockBatch
+from .models import Customer, Invoice, Order, Product, PurchaseOrder, StockBatch, Supplier
 from .permissions import IsOwner, is_owner
 from .serializers import (
     CustomerSerializer,
@@ -15,7 +17,9 @@ from .serializers import (
     OrderSerializer,
     OrderStatusSerializer,
     ProductSerializer,
+    PurchaseOrderSerializer,
     StockBatchSerializer,
+    SupplierSerializer,
 )
 from .services import ensure_invoice
 
@@ -30,10 +34,74 @@ class ProductViewSet(
     mixins.ListModelMixin,
     mixins.CreateModelMixin,
     mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
     viewsets.GenericViewSet,
 ):
-    queryset = Product.objects.all()
+    queryset = Product.objects.select_related("supplier")
     serializer_class = ProductSerializer
+
+    def get_permissions(self):
+        """Staff maintain the catalogue; only the owner removes from it.
+
+        Deleting is the one irreversible action here — it takes the product's
+        stock history with it — so it follows the same owner gate as the rest
+        of this app's destructive/financial surface.
+        """
+        if self.action == "destroy":
+            return [IsOwner()]
+        return super().get_permissions()
+
+    def perform_destroy(self, product):
+        """Refuse deletions that would quietly destroy trading history.
+
+        OrderItem.product is PROTECT, so an ordered product would raise
+        ProtectedError and surface as a 500; batches are CASCADE, so stock rows
+        would vanish without a word. Both are caught here as plain 400s.
+        """
+        order_count = product.order_items.count()
+        if order_count:
+            raise ValidationError(
+                {
+                    "detail": (
+                        f"'{product.name}' appears on {order_count} order line(s) and "
+                        "cannot be deleted. Its sales history depends on it."
+                    )
+                }
+            )
+
+        in_stock = sum(batch.quantity for batch in product.batches.all())
+        if in_stock:
+            raise ValidationError(
+                {
+                    "detail": (
+                        f"'{product.name}' still has {in_stock} unit(s) across "
+                        f"{product.batches.count()} stock batch(es). Clear the stock "
+                        "before deleting the product."
+                    )
+                }
+            )
+
+        # Drop the uploaded photo too, or MEDIA_ROOT accumulates orphans.
+        if product.image:
+            product.image.delete(save=False)
+        product.delete()
+
+    @action(detail=False, methods=["get"])
+    def categories(self, request):
+        """Categories already in use, for the product form's dropdown.
+
+        There is no Category table — a category exists exactly as long as some
+        product carries it — so this derives the list from the products
+        themselves rather than from a lookup table that could drift out of sync.
+        """
+        names = (
+            Product.objects.exclude(category="")
+            .values_list("category", flat=True)
+            .distinct()
+            .order_by("category")
+        )
+        return Response(list(names))
 
 
 class StockBatchViewSet(
@@ -43,6 +111,51 @@ class StockBatchViewSet(
 
     queryset = StockBatch.objects.select_related("product")
     serializer_class = StockBatchSerializer
+
+
+class SupplierViewSet(viewsets.ModelViewSet):
+    queryset = Supplier.objects.all()
+    serializer_class = SupplierSerializer
+
+    def get_permissions(self):
+        # Same split as products: staff maintain the list, owner removes from it.
+        if self.action == "destroy":
+            return [IsOwner()]
+        return super().get_permissions()
+
+    def perform_destroy(self, supplier):
+        """Product.supplier is PROTECT, so an assigned supplier would 500."""
+        products = list(supplier.products.values_list("name", flat=True)[:3])
+        count = supplier.products.count()
+        if count:
+            listed = ", ".join(products)
+            more = f" and {count - len(products)} more" if count > len(products) else ""
+            raise ValidationError(
+                {
+                    "detail": (
+                        f"'{supplier.name}' supplies {count} product(s) ({listed}{more}) "
+                        "and cannot be deleted. Reassign them to another supplier first."
+                    )
+                }
+            )
+        supplier.delete()
+
+
+class PurchaseOrderViewSet(viewsets.ReadOnlyModelViewSet):
+    """Stock ordered from suppliers. Raised by auto-reorder, so read-only here."""
+
+    queryset = PurchaseOrder.objects.select_related("supplier", "product")
+    serializer_class = PurchaseOrderSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        product = self.request.query_params.get("product")
+        status_filter = self.request.query_params.get("status")
+        if product:
+            queryset = queryset.filter(product_id=product)
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        return queryset
 
 
 class CustomerViewSet(

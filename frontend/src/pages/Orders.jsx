@@ -2,11 +2,12 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, apiErrorMessage } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
+import { useToast } from '../components/Toast'
 import {
   Badge,
   Card,
   EmptyRow,
-  ErrorAlert,
+  LoadFailed,
   PageHeader,
   Spinner,
   Td,
@@ -21,9 +22,9 @@ const formatINR = (value) =>
   `₹${Number(value).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
 
 function NewOrderForm({ customers, products, onDone, onCancel }) {
+  const toast = useToast()
   const [customer, setCustomer] = useState(customers[0]?.id ?? '')
   const [items, setItems] = useState([{ product: products[0]?.id ?? '', quantity: 1 }])
-  const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   function updateItem(index, field, value) {
@@ -32,16 +33,17 @@ function NewOrderForm({ customers, products, onDone, onCancel }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    setError('')
     setSubmitting(true)
+    const buyer = customers.find((c) => String(c.id) === String(customer))
     try {
       await api.post('/orders/', {
         customer,
         items: items.map((item) => ({ product: item.product, quantity: Number(item.quantity) })),
       })
+      toast.success(`Order created for ${buyer?.name ?? 'the customer'}.`)
       onDone()
     } catch (err) {
-      setError(apiErrorMessage(err))
+      toast.error(apiErrorMessage(err))
       setSubmitting(false)
     }
   }
@@ -114,8 +116,6 @@ function NewOrderForm({ customers, products, onDone, onCancel }) {
           </button>
         </div>
 
-        {error && <ErrorAlert message={error} onDismiss={() => setError('')} />}
-
         <div className="flex gap-2">
           <button type="submit" disabled={submitting} className={buttonPrimary}>
             {submitting ? 'Creating…' : 'Create order'}
@@ -130,17 +130,21 @@ function NewOrderForm({ customers, products, onDone, onCancel }) {
 }
 
 function OrderRow({ order, isOwner, onTransition }) {
+  const toast = useToast()
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
   const next = NEXT_STATUS[order.status]
 
   async function transition() {
     setBusy(true)
-    setError('')
     try {
       await onTransition(order.id, next)
+      toast.success(
+        next === 'delivered'
+          ? `Order #${order.id} delivered — invoice generated.`
+          : `Order #${order.id} marked ${next}.`,
+      )
     } catch (err) {
-      setError(apiErrorMessage(err))
+      toast.error(apiErrorMessage(err))
     } finally {
       setBusy(false)
     }
@@ -186,23 +190,17 @@ function OrderRow({ order, isOwner, onTransition }) {
             ))}
         </Td>
       </tr>
-      {error && (
-        <tr>
-          <Td colSpan={7} className="py-2">
-            <ErrorAlert message={error} onDismiss={() => setError('')} />
-          </Td>
-        </tr>
-      )}
     </>
   )
 }
 
 export default function Orders() {
   const { user } = useAuth()
+  const toast = useToast()
   const [orders, setOrders] = useState(null)
   const [customers, setCustomers] = useState([])
   const [products, setProducts] = useState([])
-  const [error, setError] = useState('')
+  const [failed, setFailed] = useState(false)
   const [showForm, setShowForm] = useState(false)
 
   const load = useCallback(() => {
@@ -211,9 +209,13 @@ export default function Orders() {
         setOrders(ord.data)
         setCustomers(cust.data)
         setProducts(prods.data)
-        setError('')
+        setFailed(false)
       })
-      .catch((err) => setError(apiErrorMessage(err)))
+      .catch((err) => {
+        setFailed(true)
+        toast.error(`Could not load orders. ${apiErrorMessage(err)}`)
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -247,8 +249,8 @@ export default function Orders() {
         />
       )}
 
-      {error && <ErrorAlert message={error} />}
-      {!error && !orders && <Spinner />}
+      {failed && <LoadFailed what="orders" onRetry={load} />}
+      {!failed && !orders && <Spinner />}
       {orders && (
         <Card className="overflow-x-auto">
           <table className="w-full">

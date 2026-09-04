@@ -2,26 +2,27 @@ import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { apiErrorMessage } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
-import { ErrorAlert, buttonPrimary, inputClass } from '../components/ui'
+import { useToast } from '../components/Toast'
+import { buttonPrimary, inputClass } from '../components/ui'
 
 export default function Login() {
   const { login } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const toast = useToast()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   async function handleSubmit(e) {
     e.preventDefault()
-    setError('')
     setSubmitting(true)
     try {
-      await login(username, password)
+      const signedIn = await login(username, password)
+      toast.success(`Signed in as ${signedIn.username}.`)
       navigate(location.state?.from ?? '/', { replace: true })
     } catch (err) {
-      setError(apiErrorMessage(err))
+      toast.error(apiErrorMessage(err))
     } finally {
       setSubmitting(false)
     }
@@ -61,7 +62,6 @@ export default function Login() {
               required
             />
           </div>
-          <ErrorAlert message={error} />
           <button type="submit" disabled={submitting} className={`${buttonPrimary} w-full`}>
             {submitting ? 'Signing in…' : 'Sign in'}
           </button>

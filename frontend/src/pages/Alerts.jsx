@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
+import { useToast } from '../components/Toast'
 import { Card, PageHeader, buttonPrimary, inputClass } from '../components/ui'
 import {
   DEFAULT_THRESHOLDS,
@@ -60,9 +61,9 @@ export default function Alerts() {
   const { user } = useAuth()
   const canEdit = user?.role === 'owner'
 
+  const toast = useToast()
   const [thresholds, setThresholds] = useState(loadThresholds)
   const [draft, setDraft] = useState(thresholds)
-  const [saved, setSaved] = useState(false)
   const [checkedAt] = useState(() => new Date())
 
   const alerts = useMemo(() => buildAlerts(thresholds), [thresholds])
@@ -72,13 +73,6 @@ export default function Alerts() {
     : alerts.find((a) => a.sev === 'Warning')
       ? 'Warning'
       : 'Normal'
-
-  // Clear the "saved" confirmation once the user starts editing again.
-  useEffect(() => {
-    if (!saved) return
-    const t = setTimeout(() => setSaved(false), 2600)
-    return () => clearTimeout(t)
-  }, [saved])
 
   function save() {
     const next = { ...draft }
@@ -90,10 +84,11 @@ export default function Alerts() {
     setDraft(next)
     try {
       localStorage.setItem(THRESHOLD_KEY, JSON.stringify(next))
+      toast.success('Thresholds saved — the alert list has been re-evaluated.')
     } catch {
       // Private mode or blocked storage — the values still apply this session.
+      toast.error('Thresholds applied for this session, but could not be saved in this browser.')
     }
-    setSaved(true)
   }
 
   return (
@@ -173,10 +168,8 @@ export default function Alerts() {
               <button onClick={save} className={`${buttonPrimary} mt-5 w-full`}>
                 Save thresholds
               </button>
-              <p className="mt-3 text-xs text-muted" role="status">
-                {saved
-                  ? 'Saved — the alert list above has been re-evaluated.'
-                  : 'Thresholds are saved in this browser and applied immediately to the alert list.'}
+              <p className="mt-3 text-xs text-muted">
+                Thresholds are saved in this browser and applied immediately to the alert list.
               </p>
             </>
           ) : (

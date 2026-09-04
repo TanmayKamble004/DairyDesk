@@ -1,29 +1,39 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { api, apiErrorMessage } from '../api/client'
-import { Badge, Card, EmptyRow, ErrorAlert, PageHeader, Spinner, Td, Th } from '../components/ui'
+import { useToast } from '../components/Toast'
+import { Badge, Card, EmptyRow, LoadFailed, PageHeader, Spinner, Td, Th } from '../components/ui'
 
 const formatINR = (value) =>
   `₹${Number(value).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
 
 export default function Invoices() {
+  const toast = useToast()
   const [invoices, setInvoices] = useState(null)
-  const [error, setError] = useState('')
+  const [failed, setFailed] = useState(false)
+  const [reloads, setReloads] = useState(0)
   // Set when navigating here from an order's "View invoice" link.
   const highlightOrder = useLocation().state?.highlightOrder
 
   useEffect(() => {
     api
       .get('/invoices/')
-      .then((res) => setInvoices(res.data))
-      .catch((err) => setError(apiErrorMessage(err)))
-  }, [])
+      .then((res) => {
+        setInvoices(res.data)
+        setFailed(false)
+      })
+      .catch((err) => {
+        setFailed(true)
+        toast.error(`Could not load invoices. ${apiErrorMessage(err)}`)
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reloads])
 
   return (
     <div className="space-y-6">
       <PageHeader title="Invoices" />
-      {error && <ErrorAlert message={error} />}
-      {!error && !invoices && <Spinner />}
+      {failed && <LoadFailed what="invoices" onRetry={() => setReloads((n) => n + 1)} />}
+      {!failed && !invoices && <Spinner />}
       {invoices && (
         <Card className="overflow-x-auto">
           <table className="w-full">

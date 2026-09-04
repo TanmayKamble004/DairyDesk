@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, apiErrorMessage } from '../api/client'
-import { Card, ErrorAlert, PageHeader, Spinner } from '../components/ui'
+import { useToast } from '../components/Toast'
+import { Card, LoadFailed, PageHeader, Spinner } from '../components/ui'
 import InventoryShelf from '../components/InventoryShelf'
 
 const formatINR = (value) =>
@@ -71,23 +72,34 @@ function KpiTiles({ kpis }) {
 }
 
 export default function Dashboard() {
+  const toast = useToast()
   const [kpis, setKpis] = useState(null)
-  const [error, setError] = useState('')
+  const [failed, setFailed] = useState(false)
+  const [reloads, setReloads] = useState(0)
 
   useEffect(() => {
     api
       .get('/dashboard/')
-      .then((res) => setKpis(res.data))
-      .catch((err) => setError(apiErrorMessage(err)))
-  }, [])
+      .then((res) => {
+        setKpis(res.data)
+        setFailed(false)
+      })
+      .catch((err) => {
+        setFailed(true)
+        toast.error(`Could not load the dashboard. ${apiErrorMessage(err)}`)
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reloads])
 
   // KPIs and the shelf fetch independently, so one failing never hides the other.
   return (
     <div>
       <PageHeader title="Dashboard" />
       <div className="space-y-6">
-        {error && <ErrorAlert message={error} />}
-        {!error && !kpis && <Spinner />}
+        {failed && (
+          <LoadFailed what="the dashboard" onRetry={() => setReloads((n) => n + 1)} />
+        )}
+        {!failed && !kpis && <Spinner />}
         {kpis && <KpiTiles kpis={kpis} />}
         <InventoryShelf />
       </div>

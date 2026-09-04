@@ -6,20 +6,29 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
 
-from core.models import Customer, Invoice, Order, OrderItem, Product, StockBatch, User
+from core.models import (
+    Customer,
+    Invoice,
+    Order,
+    OrderItem,
+    Product,
+    StockBatch,
+    Supplier,
+    User,
+)
 
 OWNER_CREDENTIALS = ("owner", "owner123")
 STAFF_CREDENTIALS = ("staff", "staff123")
 
-# name, category, unit, selling_price
+# name, sku, category, unit, selling_price, reorder_threshold, reorder_quantity, supplier
 PRODUCTS = [
-    ("Full Cream Milk", "Milk", Product.Unit.LITRE, "66.00"),
-    ("Toned Milk", "Milk", Product.Unit.LITRE, "54.00"),
-    ("Dahi (Curd)", "Fermented", Product.Unit.KG, "90.00"),
-    ("Paneer", "Fresh Cheese", Product.Unit.KG, "380.00"),
-    ("Ghee", "Fats", Product.Unit.KG, "620.00"),
-    ("Chaas (Buttermilk)", "Fermented", Product.Unit.LITRE, "30.00"),
-    ("Butter", "Fats", Product.Unit.KG, "540.00"),
+    ("Full Cream Milk", "MLK-1001", "Milk", Product.Unit.LITRE, "66.00", 30, 80, "Sunrise Dairy Co."),
+    ("Toned Milk", "MLK-1002", "Milk", Product.Unit.LITRE, "54.00", 25, 70, "Sunrise Dairy Co."),
+    ("Dahi (Curd)", "FRM-2001", "Fermented", Product.Unit.KG, "90.00", 10, 30, "Sunrise Dairy Co."),
+    ("Paneer", "CHZ-3001", "Fresh Cheese", Product.Unit.KG, "380.00", 8, 24, "Nova Foods Pvt Ltd"),
+    ("Ghee", "FAT-4001", "Fats", Product.Unit.KG, "620.00", 6, 20, "Kirana Wholesale"),
+    ("Chaas (Buttermilk)", "FRM-2002", "Fermented", Product.Unit.LITRE, "30.00", 15, 40, "FreshCare Supplies"),
+    ("Butter", "FAT-4002", "Fats", Product.Unit.KG, "540.00", 5, 18, "Kirana Wholesale"),
 ]
 
 # product name -> list of (quantity, purchase_price, days_until_expiry, days_since_received)
@@ -34,6 +43,16 @@ BATCHES = {
     "Chaas (Buttermilk)": [(30, "22.00", 3, 0), (10, "22.00", -1, 4)],
     "Butter": [(10, "430.00", 45, 5), (4, "425.00", 3, 20)],
 }
+
+# name, contact person, phone, email, products supplied, days since last order, rating
+SUPPLIERS = [
+    ("Sunrise Dairy Co.", "Meera Kulkarni", "+91 98220 41220", "orders@sunrisedairy.in", 3, 1, "4.8"),
+    ("Nova Foods Pvt Ltd", "Rajat Menon", "+91 98111 77304", "supply@novafoods.com", 2, 2, "4.4"),
+    ("Kirana Wholesale", "Anil Deshpande", "+91 97654 20981", "anil@kiranawholesale.in", 6, 3, "4.1"),
+    ("Metro Snacks & Beverages", "Priya Nair", "+91 99001 55432", "priya@metrosnacks.in", 4, 4, "3.6"),
+    ("FreshCare Supplies", "Vikram Shah", "+91 98330 60117", "vikram@freshcare.co.in", 3, 5, "4.6"),
+    ("Juice Valley Beverages", "Sana Qureshi", "+91 97020 33845", "sales@juicevalley.in", 3, 6, "3.2"),
+]
 
 CUSTOMERS = [
     ("Sharma General Store", "9820011223", "Shop 4, SV Road, Andheri West, Mumbai"),
@@ -73,6 +92,8 @@ class Command(BaseCommand):
         Customer.objects.all().delete()
         StockBatch.objects.all().delete()
         Product.objects.all().delete()
+        # After products: Product.supplier is PROTECT.
+        Supplier.objects.all().delete()
         User.objects.filter(username__in=[OWNER_CREDENTIALS[0], STAFF_CREDENTIALS[0]]).delete()
 
         # Users — owner is a superuser so admin is usable straight away.
@@ -89,10 +110,30 @@ class Command(BaseCommand):
             role=User.Role.STAFF,
         )
 
+        # Suppliers first — products point at them.
+        suppliers = {}
+        for name, contact, phone, email, supplied, days_ago, rating in SUPPLIERS:
+            suppliers[name] = Supplier.objects.create(
+                name=name,
+                contact_person=contact,
+                phone=phone,
+                email=email,
+                products_supplied=supplied,
+                last_order_date=today - timedelta(days=days_ago),
+                rating=Decimal(rating),
+            )
+
         products = {}
-        for name, category, unit, price in PRODUCTS:
+        for name, sku, category, unit, price, threshold, reorder_qty, supplier in PRODUCTS:
             products[name] = Product.objects.create(
-                name=name, category=category, unit=unit, selling_price=Decimal(price)
+                name=name,
+                sku=sku,
+                category=category,
+                unit=unit,
+                selling_price=Decimal(price),
+                reorder_threshold=threshold,
+                reorder_quantity=reorder_qty,
+                supplier=suppliers[supplier],
             )
 
         batch_count = 0
@@ -147,6 +188,7 @@ class Command(BaseCommand):
         self.stdout.write(f"    owner login: {OWNER_CREDENTIALS[0]} / {OWNER_CREDENTIALS[1]} (superuser)")
         self.stdout.write(f"    staff login: {STAFF_CREDENTIALS[0]} / {STAFF_CREDENTIALS[1]}")
         self.stdout.write(f"  Products:     {len(products)}")
+        self.stdout.write(f"  Suppliers:    {len(SUPPLIERS)}")
         self.stdout.write(f"  StockBatches: {batch_count}")
         self.stdout.write(f"  Customers:    {len(customers)}")
         self.stdout.write(f"  Orders:       {order_count}")

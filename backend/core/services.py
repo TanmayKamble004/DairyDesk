@@ -5,7 +5,7 @@ from decimal import Decimal
 from django.utils import timezone
 from rest_framework import serializers
 
-from .models import Invoice
+from .models import Invoice, Product, PurchaseOrder
 
 
 def deduct_stock_fifo(product_quantities):
@@ -52,6 +52,54 @@ def deduct_stock_fifo(product_quantities):
     for batch, take in deductions:
         batch.quantity -= take
         batch.save(update_fields=["quantity"])
+
+
+def open_purchase_order(product):
+    """The product's outstanding purchase order, if it has one."""
+    return product.purchase_orders.filter(status=PurchaseOrder.Status.PLACED).first()
+
+
+def raise_auto_reorders(products=None):
+    """Raise a purchase order for each auto-reorder product at/below threshold.
+
+    Returns the orders it created. Deliberately skips a product that already
+    has one outstanding: without that, every sale below the threshold would
+    raise another order for stock that is already on its way.
+
+    `products` limits the sweep to specific rows; omit it to check them all.
+    """
+    if products is None:
+        products = Product.objects.filter(auto_reorder=True).select_related("supplier")
+
+    created = []
+    for product in products:
+        if not product.auto_reorder or product.supplier_id is None:
+            continue
+        if product.reorder_quantity <= 0:
+            continue
+        if product.available_quantity > product.reorder_threshold:
+            continue
+        if open_purchase_order(product):
+            continue
+        created.append(
+            PurchaseOrder.objects.create(
+                supplier=product.supplier,
+                product=product,
+                quantity=product.reorder_quantity,
+            )
+        )
+    return created
+
+
+def fulfil_purchase_orders(product):
+    """Close a product's outstanding orders once its stock is received.
+
+    Receiving a batch is the only signal this app has that a supplier
+    delivered, and leaving the order open would block every later reorder.
+    """
+    return product.purchase_orders.filter(status=PurchaseOrder.Status.PLACED).update(
+        status=PurchaseOrder.Status.RECEIVED
+    )
 
 
 def ensure_invoice(order):

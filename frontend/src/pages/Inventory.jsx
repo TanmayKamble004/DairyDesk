@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api, apiErrorMessage } from '../api/client'
+import { useToast } from '../components/Toast'
 import {
   Badge,
   Card,
   EmptyRow,
-  ErrorAlert,
+  LoadFailed,
   PageHeader,
   Spinner,
   Td,
@@ -24,20 +25,21 @@ function ReceiveStockForm({ products, onDone, onCancel }) {
     expiry_date: '',
     received_date: today(),
   })
-  const [error, setError] = useState('')
+  const toast = useToast()
   const [submitting, setSubmitting] = useState(false)
 
   const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }))
 
   async function handleSubmit(e) {
     e.preventDefault()
-    setError('')
     setSubmitting(true)
+    const product = products.find((p) => String(p.id) === String(form.product))
     try {
       await api.post('/stock-batches/', form)
+      toast.success(`Received ${form.quantity} × ${product?.name ?? 'stock'}.`)
       onDone()
     } catch (err) {
-      setError(apiErrorMessage(err))
+      toast.error(apiErrorMessage(err))
       setSubmitting(false)
     }
   }
@@ -107,20 +109,16 @@ function ReceiveStockForm({ products, onDone, onCancel }) {
             Cancel
           </button>
         </div>
-        {error && (
-          <div className="sm:col-span-2 lg:col-span-5">
-            <ErrorAlert message={error} onDismiss={() => setError('')} />
-          </div>
-        )}
       </form>
     </Card>
   )
 }
 
 export default function Inventory() {
+  const toast = useToast()
   const [rows, setRows] = useState(null)
   const [products, setProducts] = useState([])
-  const [error, setError] = useState('')
+  const [failed, setFailed] = useState(false)
   const [showForm, setShowForm] = useState(false)
 
   const load = useCallback(() => {
@@ -128,9 +126,13 @@ export default function Inventory() {
       .then(([inv, prods]) => {
         setRows(inv.data)
         setProducts(prods.data)
-        setError('')
+        setFailed(false)
       })
-      .catch((err) => setError(apiErrorMessage(err)))
+      .catch((err) => {
+        setFailed(true)
+        toast.error(`Could not load inventory. ${apiErrorMessage(err)}`)
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -158,8 +160,8 @@ export default function Inventory() {
         />
       )}
 
-      {error && <ErrorAlert message={error} />}
-      {!error && !rows && <Spinner />}
+      {failed && <LoadFailed what="inventory" onRetry={load} />}
+      {!failed && !rows && <Spinner />}
       {rows && (
         <Card className="overflow-x-auto">
           <table className="w-full">

@@ -1,7 +1,9 @@
 """Core data models for DairyDesk (spec section 3, MVP cut)."""
 from datetime import timedelta
+from decimal import Decimal
 
 from django.contrib.auth.models import AbstractUser
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import Sum
 from django.utils import timezone
@@ -28,9 +30,30 @@ class Product(models.Model):
         PIECE = "piece", "Piece"
 
     name = models.CharField(max_length=100)
+    sku = models.CharField(max_length=32, unique=True)
     category = models.CharField(max_length=100)
+    # Nullable only so products that predate suppliers keep loading; the API
+    # requires one, so any edit fills it in. PROTECT stops a supplier being
+    # deleted out from under the products it supplies.
+    supplier = models.ForeignKey(
+        "Supplier",
+        on_delete=models.PROTECT,
+        related_name="products",
+        null=True,
+        blank=True,
+    )
     unit = models.CharField(max_length=10, choices=Unit.choices)
     selling_price = models.DecimalField(max_digits=10, decimal_places=2)
+    description = models.TextField(blank=True)
+    # Optional catalogue photo. Stored under MEDIA_ROOT/products/.
+    image = models.ImageField(upload_to="products/", blank=True, null=True)
+    # Quantity to put on a purchase order once stock falls to the threshold.
+    reorder_quantity = models.PositiveIntegerField(default=0)
+    # Stock at or below this counts as "low" on the Products page.
+    reorder_threshold = models.PositiveIntegerField(default=0)
+    # When on, hitting the threshold raises a purchase order to `supplier`
+    # for `reorder_quantity` units without anyone asking. See services.py.
+    auto_reorder = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["name"]
@@ -46,6 +69,16 @@ class Product(models.Model):
             total=Sum("quantity")
         )["total"]
         return total or 0
+
+    @property
+    def stock_status(self):
+        """Stock health against the reorder threshold: out / low / in stock."""
+        quantity = self.available_quantity
+        if quantity == 0:
+            return "out_of_stock"
+        if quantity <= self.reorder_threshold:
+            return "low_stock"
+        return "in_stock"
 
 
 class StockBatch(models.Model):
@@ -75,6 +108,65 @@ class StockBatch(models.Model):
         if self.expiry_date <= today + timedelta(days=AGEING_THRESHOLD_DAYS):
             return self.STATUS_AGEING
         return self.STATUS_FRESH
+
+
+class Supplier(models.Model):
+    """A vendor this store buys stock from.
+
+    `products_supplied` is entered rather than counted: Product has no supplier
+    relation yet, so there is nothing to count from. See the Suppliers page.
+    """
+
+    name = models.CharField(max_length=100)
+    contact_person = models.CharField(max_length=100)
+    phone = models.CharField(max_length=20)
+    email = models.EmailField()
+    products_supplied = models.PositiveIntegerField(default=0)
+    last_order_date = models.DateField()
+    # 0.0–5.0, one decimal — the bands the Suppliers page colours by.
+    rating = models.DecimalField(
+        max_digits=2,
+        decimal_places=1,
+        validators=[MinValueValidator(Decimal("0")), MaxValueValidator(Decimal("5"))],
+    )
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class PurchaseOrder(models.Model):
+    """Stock ordered *from* a supplier, as opposed to Order (sold to a customer).
+
+    One product per order, because the quantity comes from that product's
+    `reorder_quantity`. Batching a supplier's outstanding lines into a single
+    order would be the next step, and does not change this model's shape.
+    """
+
+    class Status(models.TextChoices):
+        PLACED = "placed", "Placed"
+        RECEIVED = "received", "Received"
+        CANCELLED = "cancelled", "Cancelled"
+
+    supplier = models.ForeignKey(
+        Supplier, on_delete=models.PROTECT, related_name="purchase_orders"
+    )
+    product = models.ForeignKey(
+        Product, on_delete=models.PROTECT, related_name="purchase_orders"
+    )
+    quantity = models.PositiveIntegerField()
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PLACED)
+    # False for anything a person raises by hand, once that exists.
+    auto_generated = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"PO #{self.pk}: {self.quantity} × {self.product.name} from {self.supplier.name}"
 
 
 class Customer(models.Model):
