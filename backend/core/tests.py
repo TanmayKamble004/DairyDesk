@@ -4,9 +4,11 @@ import os
 import shutil
 import tempfile
 from datetime import timedelta
+from io import StringIO
 
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import override_settings
+from django.core.management import call_command
+from django.test import TestCase, override_settings
 from django.utils import timezone
 from PIL import Image
 from rest_framework import status
@@ -726,6 +728,37 @@ class AutoReorderTests(APITestCase):
             self.client.get(PURCHASE_ORDERS_URL).status_code,
             status.HTTP_401_UNAUTHORIZED,
         )
+
+
+class SeedDemoTests(TestCase):
+    """seed_demo clears before it seeds, and PROTECT makes the order matter."""
+
+    def test_reseeding_over_existing_data_succeeds(self):
+        """Every PROTECT-ed reference must be cleared before its target.
+
+        Running it twice is the point: the first pass builds the graph
+        (products -> suppliers, purchase orders -> both), the second has to
+        tear that graph down in an order Postgres accepts.
+        """
+        # seed_demo reports through self.stdout, which verbosity does not gate,
+        # so it needs somewhere other than the test log to write.
+        call_command("seed_demo", stdout=StringIO())
+
+        # Give the second run a purchase order to trip over — the shape that
+        # the docker entrypoint's empty-database seed never produces.
+        product = Product.objects.first()
+        PurchaseOrder.objects.create(
+            supplier=product.supplier, product=product, quantity=10
+        )
+
+        # seed_demo reports through self.stdout, which verbosity does not gate,
+        # so it needs somewhere other than the test log to write.
+        call_command("seed_demo", stdout=StringIO())
+
+        self.assertEqual(Supplier.objects.count(), 6)
+        self.assertEqual(Product.objects.count(), 7)
+        self.assertEqual(PurchaseOrder.objects.count(), 0)
+        self.assertFalse(Product.objects.filter(supplier__isnull=True).exists())
 
 
 class CategoryLookupTests(APITestCase):

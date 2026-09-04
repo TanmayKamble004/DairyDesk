@@ -12,6 +12,7 @@ from core.models import (
     Order,
     OrderItem,
     Product,
+    PurchaseOrder,
     StockBatch,
     Supplier,
     User,
@@ -91,6 +92,8 @@ class Command(BaseCommand):
         Order.objects.all().delete()
         Customer.objects.all().delete()
         StockBatch.objects.all().delete()
+        # Before products and suppliers: PurchaseOrder protects both.
+        PurchaseOrder.objects.all().delete()
         Product.objects.all().delete()
         # After products: Product.supplier is PROTECT.
         Supplier.objects.all().delete()
