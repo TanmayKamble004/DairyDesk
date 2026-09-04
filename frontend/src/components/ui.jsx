@@ -1,34 +1,12 @@
 /** Small shared UI pieces — keep pages focused on data flow. */
+import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 export function Spinner({ label = 'Loading…' }) {
   return (
     <div className="flex items-center gap-3 py-10 justify-center text-muted">
       <span className="h-5 w-5 animate-spin rounded-full border-2 border-line border-t-brand" />
       {label}
-    </div>
-  )
-}
-
-export function ErrorAlert({ message, onDismiss }) {
-  if (!message) return null
-  return (
-    <div
-      role="alert"
-      className="flex items-start justify-between gap-4 rounded-lg border border-expired/40 bg-expired-soft px-4 py-3 text-sm text-expired-ink"
-    >
-      <span className="flex items-start gap-2">
-        <span aria-hidden="true">⚠</span>
-        <span>{message}</span>
-      </span>
-      {onDismiss && (
-        <button
-          onClick={onDismiss}
-          aria-label="Dismiss error"
-          className="font-bold text-expired-ink/80 hover:text-expired-ink"
-        >
-          ×
-        </button>
-      )}
     </div>
   )
 }
@@ -123,6 +101,28 @@ export function Td({ children, className = '', ...rest }) {
   )
 }
 
+/**
+ * Persistent stand-in for a list that could not be fetched. The toast says
+ * what went wrong and fades; this keeps the page from looking merely empty,
+ * and offers the one action worth taking.
+ */
+export function LoadFailed({ what, onRetry }) {
+  return (
+    <Card className="p-10 text-center">
+      <div className="text-2xl text-expired" aria-hidden="true">
+        ⚠
+      </div>
+      <div className="mt-1 text-sm font-medium text-ink">Could not load {what}.</div>
+      <div className="mt-0.5 text-xs text-muted">
+        The server may be unreachable. Check that the backend is running.
+      </div>
+      <button onClick={onRetry} className={`${buttonSecondary} mt-4`}>
+        Try again
+      </button>
+    </Card>
+  )
+}
+
 /** Empty table body — a neutral icon plus a sentence, never a bare dash. */
 export function EmptyRow({ colSpan, title, detail }) {
   return (
@@ -137,6 +137,75 @@ export function EmptyRow({ colSpan, title, detail }) {
         {detail && <div className="mt-0.5 text-xs text-muted">{detail}</div>}
       </td>
     </tr>
+  )
+}
+
+/**
+ * Round + in a page header, opening a small menu of things to create. One
+ * entry today on each page that uses it, but a menu rather than a plain link
+ * because that is the affordance a + promises.
+ */
+export function AddMenu({ label, title, description, icon, to }) {
+  const navigate = useNavigate()
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef(null)
+
+  useEffect(() => {
+    if (!open) return undefined
+    function onPointerDown(e) {
+      if (!wrapRef.current?.contains(e.target)) setOpen(false)
+    }
+    function onKeyDown(e) {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="flex h-10 w-10 items-center justify-center rounded-full bg-brand text-2xl leading-none text-white shadow-sm transition-colors hover:bg-brand-hover"
+      >
+        <span aria-hidden="true" className="-mt-0.5">
+          +
+        </span>
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 top-12 z-30 w-64 overflow-hidden rounded-xl border border-line bg-surface shadow-lg"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false)
+              navigate(to)
+            }}
+            className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-muted"
+          >
+            <span className="mt-0.5 text-lg" aria-hidden="true">
+              {icon}
+            </span>
+            <span>
+              <span className="block text-sm font-medium text-ink">{title}</span>
+              <span className="block text-xs text-muted">{description}</span>
+            </span>
+          </button>
+        </div>
+      )}
+    </div>
   )
 }
 

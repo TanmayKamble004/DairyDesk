@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useToast } from '../components/Toast'
 import { Card, PageHeader, Td, Th, EmptyRow, buttonPrimary, buttonSecondary, inputClass } from '../components/ui'
 import { MONEY_COLS, REPORT_TYPES, buildReport, inr } from '../data/storeMock'
 
@@ -27,6 +28,7 @@ function download(filename, text) {
 }
 
 export default function Reports() {
+  const toast = useToast()
   const [from, setFrom] = useState('2026-08-27')
   const [to, setTo] = useState('2026-09-02')
   const [type, setType] = useState('Stock Summary')
@@ -42,13 +44,26 @@ export default function Reports() {
       <PageHeader title="Reports">
         <div className="flex flex-wrap gap-2">
           <button
-            onClick={() => download(filename, toCsv(cols, rows))}
+            onClick={() => {
+              try {
+                download(filename, toCsv(cols, rows))
+                toast.success(`Exported ${rows.length} row(s) to ${filename}.csv.`)
+              } catch {
+                toast.error('Could not export the CSV. Check your browser download settings.')
+              }
+            }}
             disabled={rows.length === 0}
             className={buttonSecondary}
           >
             ⭳ Export CSV
           </button>
-          <button onClick={() => setGeneratedAt(new Date())} className={buttonPrimary}>
+          <button
+            onClick={() => {
+              setGeneratedAt(new Date())
+              toast.success(`${type} report generated — ${rows.length} row(s).`)
+            }}
+            className={buttonPrimary}
+          >
             Generate Report
           </button>
         </div>
