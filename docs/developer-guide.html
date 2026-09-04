@@ -155,6 +155,42 @@
     border-radius: 2px;
   }
 
+  .steps { counter-reset: step; list-style: none; padding-left: 0; }
+  .steps > li {
+    counter-increment: step;
+    position: relative;
+    padding-left: 30px;
+    margin-bottom: 10px;
+    break-inside: avoid;
+  }
+  .steps > li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0; top: 0;
+    width: 20px; height: 20px;
+    background: #0ea5e9;
+    color: #fff;
+    border-radius: 50%;
+    font-size: 9pt;
+    font-weight: 700;
+    text-align: center;
+    line-height: 20px;
+  }
+  .steps > li b { display: block; margin-bottom: 2px; }
+
+  .plat {
+    display: inline-block;
+    background: #0f172a;
+    color: #fff;
+    font-size: 9pt;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    border-radius: 4px;
+    padding: 3px 10px;
+    margin: 14px 0 8px;
+  }
+  .plat.mac { background: #475569; }
+
   .pagebreak { break-before: page; }
   .lead { font-size: 10.8pt; color: #334155; }
   .muted { color: #64748b; font-size: 9pt; }
@@ -175,40 +211,187 @@
 <div class="cover">
   <div class="mark">🥛</div>
   <h1>DairyDesk</h1>
-  <div class="sub">Developer Guide &mdash; rules, conventions and pre-flight checks</div>
+  <div class="sub">Setup &amp; Developer Guide &mdash; Windows and macOS</div>
   <div class="rule"></div>
   <div class="meta">
-    <b>Audience</b>&nbsp; Anyone adding features or changing existing code<br>
+    <b>Audience</b>&nbsp; Everyone on the team &mdash; new joiners start at section 1<br>
     <b>Stack</b>&nbsp; Django 5.1 + DRF &middot; React 19 + Vite 8 &middot; PostgreSQL 16<br>
     <b>Runs on</b>&nbsp; Docker (Python 3.13 / Node 22 pinned by the images)<br>
-    <b>Read first</b>&nbsp; <code>README.md</code> for setup, <code>PROJECT_SPEC.md</code> for the spec
+    <b>Covers</b>&nbsp; Machine setup, branch rules, migrations, coding rules<br>
+    <b>Also see</b>&nbsp; <code>README.md</code> for a short version, <code>PROJECT_SPEC.md</code> for the spec
   </div>
 </div>
 
 <!-- ============ 1 ============ -->
-<h2>1. Before you write any code</h2>
+<h2>1. Set up your machine</h2>
 
-<p class="lead">DairyDesk is a small codebase with a few sharp edges. Almost every bug
-introduced here comes from missing one of the rules in section 3 &mdash; they are not style
-preferences, they are correctness requirements around <b>money</b>, <b>stock</b> and
-<b>who is allowed to see what</b>.</p>
+<p class="lead">You only need <b>two</b> programs: <b>Git</b> and <b>Docker Desktop</b>.
+You do <b>not</b> need to install Python, Node, or PostgreSQL &mdash; they live inside the
+containers, at the exact versions everyone else is using. That is the whole point: the app
+cannot break because of what is or isn't installed on your laptop.</p>
 
-<h3>Get the app running</h3>
+<p>Find your operating system below, do those steps once, then continue to section 1.3 which
+is the same for everybody.</p>
+
+<!-- ---------- WINDOWS ---------- -->
+<div class="plat">1.1 &nbsp;WINDOWS 10 / 11</div>
+
+<ol class="steps">
+  <li><b>Turn on virtualisation (do this first)</b>
+    <p>Docker on Windows runs Linux inside a lightweight virtual machine. If virtualisation is
+    off, Docker Desktop installs fine but <b>never starts</b>, with no clear error. Check it
+    first. Open PowerShell and run:</p>
+    <pre><code>wsl --status</code></pre>
+    <p>If you see <i>"WSL2 is unable to start since virtualization is not enabled"</i>, open
+    PowerShell <b>as Administrator</b> (right-click &rarr; Run as administrator) and run:</p>
+    <pre><code>dism /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
+wsl --install --no-distribution</code></pre>
+    <p><b>Then restart your computer.</b> This is required &mdash; <code>wsl --status</code> keeps
+    showing the same error until you reboot, even after the feature is enabled.</p>
+    <p class="muted">Still failing after the reboot? Virtualisation is switched off in your
+    BIOS/UEFI. Restart, enter BIOS setup (usually F2, F10 or Del), and enable
+    <b>Intel VT-x</b> or <b>AMD SVM</b>.</p>
+  </li>
+
+  <li><b>Install Git</b>
+    <p>Download from <b>git-scm.com/downloads</b> and accept the defaults. This also gives you
+    Git Bash, which is handy but optional &mdash; PowerShell works fine for everything here.</p>
+  </li>
+
+  <li><b>Install Docker Desktop</b>
+    <p>Download from <b>docker.com/products/docker-desktop</b>. Keep the
+    <b>"Use WSL 2 instead of Hyper-V"</b> option ticked. Reboot if it asks.</p>
+  </li>
+
+  <li><b>Start Docker Desktop and wait</b>
+    <p>Launch it from the Start menu. The whale icon in the system tray animates while starting.
+    Wait until it stops. Docker is not usable until then.</p>
+  </li>
+
+  <li><b>Check it worked</b>
+    <pre><code>git --version
+docker --version
+docker compose version</code></pre>
+    <p>All three must print a version number. If <code>docker</code> errors with
+    <i>"daemon not running"</i>, Docker Desktop is not started yet.</p>
+  </li>
+</ol>
+
+<div class="box warn">
+  <span class="lbl">Windows notes</span>
+  <p>You no longer need to touch PowerShell's execution policy. That was only required for
+  activating a Python virtualenv, and there is no virtualenv any more.</p>
+  <p>Run commands from <b>PowerShell</b> or <b>Git Bash</b> &mdash; both work. Just don't run the
+  same stack from two terminals at once.</p>
+</div>
+
+<!-- ---------- MACOS ---------- -->
+<div class="plat mac">1.2 &nbsp;macOS (Apple Silicon or Intel)</div>
+
+<ol class="steps">
+  <li><b>Install Git</b>
+    <p>macOS ships with it. Run <code>git --version</code> in Terminal; if it is missing, macOS
+    offers to install the Command Line Tools &mdash; accept. Or use
+    <code>brew install git</code>.</p>
+  </li>
+
+  <li><b>Install Docker Desktop &mdash; pick the right build</b>
+    <p>Download from <b>docker.com/products/docker-desktop</b> and choose the download matching
+    your chip:</p>
+    <ul>
+      <li><b>Apple Silicon</b> (M1/M2/M3/M4) &mdash; "Mac with Apple chip"</li>
+      <li><b>Intel</b> &mdash; "Mac with Intel chip"</li>
+    </ul>
+    <p>Not sure? &nbsp;&#8203;Apple menu &rarr; About This Mac. "Chip: Apple M…" means Apple
+    Silicon.</p>
+    <p>Open the <code>.dmg</code> and drag Docker into Applications.</p>
+  </li>
+
+  <li><b>Launch Docker and grant permission</b>
+    <p>Open Docker from Applications. macOS asks for your password the first time so it can
+    install its helper &mdash; this is expected. Wait for the whale icon in the menu bar to stop
+    animating.</p>
+  </li>
+
+  <li><b>Check it worked</b>
+    <pre><code>git --version
+docker --version
+docker compose version</code></pre>
+  </li>
+</ol>
+
+<div class="box ok">
+  <span class="lbl">Apple Silicon works natively &mdash; no Rosetta needed</span>
+  <p>All three base images (<code>python:3.13-slim</code>, <code>node:22-alpine</code>,
+  <code>postgres:16</code>) publish native <code>arm64</code> builds, and the backend image has
+  been test-built for <code>arm64</code> successfully. Nothing needs emulation, and you should
+  not enable "Rosetta for x86/amd64 emulation" for this project.</p>
+</div>
+
+<!-- ---------- SHARED ---------- -->
+<div class="plat" style="background:#0ea5e9">1.3 &nbsp;RUN THE APP &mdash; same on both</div>
+
+<p>You will be added to the private repo first, so make sure you are signed in to GitHub. Then:</p>
+
 <pre><code>git clone https://github.com/TanmayKamble004/DairyDesk.git
 cd DairyDesk
 docker compose up --build</code></pre>
-<p>That is the entire setup &mdash; no virtualenv, no <code>npm install</code>, no <code>.env</code> to copy.
-Frontend on <code>:5173</code>, API on <code>:8000</code>, admin at <code>/admin</code>.
-Log in as <code>owner</code>/<code>owner123</code> or <code>staff</code>/<code>staff123</code>.</p>
 
-<div class="box ok">
-  <span class="lbl">You do not need Python or Node installed</span>
-  <p>The containers pin Python 3.13 and Node 22. If you have a local venv from before, ignore
-  it &mdash; do not run the servers on the host and in Docker at the same time, they will fight
-  over ports 8000 and 5173.</p>
+<p>That is the entire setup. <b>No <code>.env</code> file to copy, no virtualenv, no
+<code>npm install</code>.</b> Every setting has a working default built in.</p>
+
+<p>The first run takes a few minutes to download and build the images (~260&nbsp;MB backend,
+~690&nbsp;MB frontend). After that, starting takes seconds. You are ready when the logs show
+the demo data summary and then Vite's banner:</p>
+
+<pre><code>dairydesk_backend  | Demo data seeded.
+dairydesk_backend  |   Products:     7
+dairydesk_backend  | Starting development server at http://0.0.0.0:8000/
+dairydesk_frontend |   VITE v8.1.3  ready in 585 ms</code></pre>
+
+<table>
+  <thead><tr><th style="width:36%">What</th><th>Open this</th></tr></thead>
+  <tbody>
+    <tr><td><b>The app</b></td><td>http://localhost:5173</td></tr>
+    <tr><td>API</td><td>http://localhost:8000</td></tr>
+    <tr><td>Django admin</td><td>http://localhost:8000/admin</td></tr>
+    <tr><td>Health check</td><td>http://localhost:8000/api/health/</td></tr>
+  </tbody>
+</table>
+
+<p>Log in with one of the two demo accounts:</p>
+<table>
+  <thead><tr><th style="width:36%">Role</th><th>Username</th><th>Password</th></tr></thead>
+  <tbody>
+    <tr><td><b>Owner</b> &mdash; full access + admin</td><td><code>owner</code></td><td><code>owner123</code></td></tr>
+    <tr><td><b>Staff</b> &mdash; no financial data</td><td><code>staff</code></td><td><code>staff123</code></td></tr>
+  </tbody>
+</table>
+
+<p>To stop: press <kbd>Ctrl</kbd>+<kbd>C</kbd> in that terminal. Next time, just
+<code>docker compose up</code> &mdash; you only need <code>--build</code> after someone adds a
+new dependency.</p>
+
+<div class="box stop">
+  <span class="lbl">If setup fails, check these three first</span>
+  <p><b>"Docker daemon not running"</b> &mdash; Docker Desktop isn't started, or on Windows,
+  virtualisation is still off. Go back to step 1.1.</p>
+  <p><b>"port is already allocated"</b> &mdash; something else uses 8000, 5173 or 5432. Close it,
+  or create a <code>.env</code> file and set <code>BACKEND_PORT</code>,
+  <code>FRONTEND_PORT</code> or <code>POSTGRES_PORT</code> to a free number.</p>
+  <p><b><code>exec /app/docker-entrypoint.sh: no such file or directory</code></b> &mdash; your Git
+  converted the file's line endings. Delete the folder and clone again; <code>.gitattributes</code>
+  in the repo prevents this on a fresh clone.</p>
 </div>
 
-<h3>Understand the domain first</h3>
+<!-- ============ 2 ============ -->
+<h2>2. Understand the domain before you change it</h2>
+
+<p class="lead">DairyDesk is a small codebase with a few sharp edges. Almost every bug
+introduced here comes from missing one of the rules in section 6 &mdash; they are not style
+preferences, they are correctness requirements around <b>money</b>, <b>stock</b> and
+<b>who is allowed to see what</b>.</p>
+
 <p>Four models carry all the business logic. Skim them before touching anything:</p>
 <table>
   <thead><tr><th style="width:22%">Model</th><th>What it means &mdash; and the part people get wrong</th></tr></thead>
@@ -220,8 +403,165 @@ Log in as <code>owner</code>/<code>owner123</code> or <code>staff</code>/<code>s
   </tbody>
 </table>
 
-<!-- ============ 2 ============ -->
-<h2>2. Pre-flight checklist</h2>
+<div class="box ok">
+  <span class="lbl">Don't run things twice</span>
+  <p>If you previously ran this project with a local virtualenv and <code>npm run dev</code>,
+  don't do both. Two backends fighting over port 8000 produces very confusing errors.</p>
+</div>
+
+<!-- ============ 3 ============ -->
+<div class="pagebreak"></div>
+<h2>3. Branch and pull request rules</h2>
+
+<p class="lead">Nobody commits straight to <code>main</code>. You work on your own branch, push it,
+and open a pull request. The project owner tests it and merges. This keeps <code>main</code>
+always working, so nobody's laptop breaks because of someone else's half-finished change.</p>
+
+<h3>Rule 1 &mdash; Never commit to <code>main</code></h3>
+<p>Not even a small fix. Not even a typo. Always make a branch.</p>
+
+<h3>Rule 2 &mdash; Always start from the latest <code>main</code></h3>
+<p>If you branch from old code, your pull request will conflict with things other people
+already merged. Get the newest code first, every time:</p>
+<pre><code>git checkout main
+git pull                        <span class="c"># get everyone else's latest work</span>
+git checkout -b your-name       <span class="c"># make your branch (e.g. tvk, riya, amit)</span></code></pre>
+
+<h3>Rule 3 &mdash; One branch per feature</h3>
+<p>Do not put three unrelated changes on one branch. Small branches get reviewed and merged
+fast. Big mixed branches sit for days and cause conflicts.</p>
+
+<h3>Rule 4 &mdash; Commit your work, then push your branch</h3>
+<pre><code>git add .
+git status                      <span class="c"># LOOK at this before committing</span>
+git commit -m "add customer search on orders page"
+git push -u origin your-name    <span class="c"># first push only; later just: git push</span></code></pre>
+<p>Write the message as what the change <i>does</i>. "add customer search" is good.
+"update", "fix", "changes" tell the next person nothing.</p>
+
+<h3>Rule 5 &mdash; Open a pull request on GitHub</h3>
+<p>Go to the repo on GitHub. It will show a banner for your just-pushed branch with a
+<b>Compare &amp; pull request</b> button. Base branch is <code>main</code>, compare branch is yours.
+Write one or two lines about what you changed and how you tested it. Then wait &mdash;
+<b>do not merge your own pull request.</b></p>
+
+<h3>Rule 6 &mdash; Test it yourself before asking for review</h3>
+<p>Run the app and click through your change first. Log in as <b>both</b> <code>owner</code> and
+<code>staff</code>. A pull request that was never run wastes the reviewer's time.</p>
+
+<h3>Rule 7 &mdash; After your branch is merged, delete it and start fresh</h3>
+<pre><code>git checkout main
+git pull                        <span class="c"># now includes your merged work</span>
+git branch -d your-name         <span class="c"># delete the old local branch</span></code></pre>
+<p>Next feature, make a new branch from the updated <code>main</code>. Do not keep reusing one
+old branch forever.</p>
+
+<div class="box stop">
+  <span class="lbl">Never do these</span>
+  <p><code>git push --force</code> on a shared branch &mdash; it deletes other people's commits.</p>
+  <p>Committing <code>.env</code>, <code>node_modules/</code>, <code>.venv/</code> or <code>__pycache__</code>.
+  <code>.gitignore</code> already blocks them. Do not force them in.</p>
+  <p>Merging your own pull request without anyone testing it.</p>
+</div>
+
+<h3>For the reviewer: test the branch safely</h3>
+<p>Testing someone's branch on your normal stack can leave their database changes in
+<i>your</i> database, even if you reject the pull request. Use a separate throwaway stack
+instead &mdash; <code>-p dairydesk_pr</code> gives it its own database:</p>
+<pre><code>git fetch origin
+git switch their-branch-name
+
+docker compose down                        <span class="c"># stop your normal stack, keeps your data</span>
+docker compose -p dairydesk_pr up --build  <span class="c"># isolated test stack, fresh database</span>
+
+<span class="c"># ...test the app at localhost:5173 as owner AND staff...</span>
+
+docker compose -p dairydesk_pr down -v     <span class="c"># delete the throwaway database</span>
+git switch main
+docker compose up -d                       <span class="c"># back to your own work, untouched</span></code></pre>
+<p>On GitHub, use <b>Squash and merge</b> so each feature becomes one clean commit on
+<code>main</code>.</p>
+
+<!-- ============ 3 ============ -->
+<div class="pagebreak"></div>
+<h2>4. Migrations &mdash; the thing that breaks everyone's app</h2>
+
+<h3>What a migration actually is</h3>
+<p>Your models are Python code in <code>backend/core/models.py</code>. But the real data lives in
+PostgreSQL, which needs actual tables and columns. A <b>migration</b> is a generated file that
+tells the database how to change so it matches your models.</p>
+<p>Think of it as the instruction slip: <i>"add a column called <code>is_active</code> to the
+products table."</i> Django keeps a list of which slips have already been carried out.</p>
+<p>Right now the project has exactly one: <code>backend/core/migrations/0001_initial.py</code>.
+It created all nine <code>core_*</code> tables.</p>
+
+<h3>When you need one</h3>
+<p><b>Only when you change <code>models.py</code>.</b> Adding a field, removing a field, renaming
+something, changing a model's options. Editing views, serializers, or any frontend file needs
+no migration at all.</p>
+
+<h3>The three steps &mdash; never skip step 3</h3>
+<ol class="steps">
+  <li><b>Change the model</b>
+    <pre><code>class Product(models.Model):
+    name = models.CharField(max_length=100)
+    is_active = models.BooleanField(default=True)   <span class="c"># you added this</span></code></pre>
+  </li>
+  <li><b>Generate the migration file</b>
+    <pre><code>docker compose exec backend python manage.py makemigrations</code></pre>
+    <p class="muted">This creates something like <code>core/migrations/0002_product_is_active.py</code>
+    in your project folder.</p>
+  </li>
+  <li><b>Commit that file together with your model change</b>
+    <pre><code>git add backend/core/models.py backend/core/migrations/0002_product_is_active.py
+git commit -m "add is_active flag to products"</code></pre>
+  </li>
+</ol>
+
+<div class="box stop">
+  <span class="lbl">The #1 mistake in this project</span>
+  <p>Changing the model but <b>forgetting to commit the migration file</b>. Your app works
+  because your database was already updated. Everyone else pulls your code and gets:</p>
+  <pre style="margin-top:6px"><code>ProgrammingError: column core_product.is_active does not exist</code></pre>
+  <p>Their code expects a column their database has never been told about. Before pushing,
+  always run <code>git status</code> and check the migration file is included.</p>
+</div>
+
+<h3>Applying migrations</h3>
+<p>You almost never run <code>migrate</code> by hand. The backend container runs it automatically
+every time it starts. So after pulling someone's work:</p>
+<pre><code>git pull
+docker compose restart backend   <span class="c"># applies any new migrations</span></code></pre>
+<p>Check what your database currently has:</p>
+<pre><code>docker compose exec backend python manage.py showmigrations core</code></pre>
+<p><code>[X]</code> means applied, <code>[&nbsp;]</code> means not yet.</p>
+
+<h3>Migration rules</h3>
+<ul>
+  <li><b>One migration per model change, committed with it.</b> Never separately, never later.</li>
+  <li><b>Never edit a migration file that is already on <code>main</code>.</b> Other people have
+  already run it. Their database will not re-run it, so your edit silently does nothing for
+  them. Make a new migration instead.</li>
+  <li><b>Never delete a migration file that is on <code>main</code></b>, for the same reason.</li>
+  <li><b>Never hand-write SQL to change tables.</b> Django would not know about it and the next
+  <code>makemigrations</code> would fight you.</li>
+  <li><b>Two people adding migrations at once</b> can both create a <code>0002_</code>. Whoever
+  merges second should pull <code>main</code>, delete their own file, and re-run
+  <code>makemigrations</code> so it becomes <code>0003_</code>.</li>
+  <li><b>If a new field must have a value for existing rows</b>, give it a
+  <code>default=</code>, or Django will stop and ask you awkward questions.</li>
+</ul>
+
+<div class="box ok">
+  <span class="lbl">Safe escape hatch</span>
+  <p>If your local database gets into a confusing state while experimenting, throw it away
+  and start clean &mdash; it only holds demo data:</p>
+  <pre style="margin-top:6px"><code>docker compose down -v && docker compose up</code></pre>
+  <p>You get a fresh database with all migrations applied and demo data seeded.</p>
+</div>
+
+<!-- ============ 4 ============ -->
+<h2>5. Pre-flight checklist</h2>
 <p>Run through this before opening a pull request. It takes two minutes and catches nearly
 everything.</p>
 
@@ -232,6 +572,7 @@ everything.</p>
   <li>No secrets, API keys, or absolute URLs hardcoded &mdash; config comes from environment variables only.</li>
   <li>No <code>console.log</code> / <code>print()</code> debugging left behind.</li>
   <li><code>git status</code> is clean of junk &mdash; no <code>.env</code>, no <code>__pycache__</code>, no <code>node_modules</code>.</li>
+  <li>You are on your own branch, not <code>main</code>.</li>
 </ul>
 
 <h3>If you touched a model</h3>
@@ -259,14 +600,14 @@ everything.</p>
   <li>Owner-only pages wrapped in <code>&lt;RequireOwner&gt;</code> <b>and</b> protected server-side.</li>
 </ul>
 
-<!-- ============ 3 ============ -->
+<!-- ============ 5 ============ -->
 <div class="pagebreak"></div>
-<h2>3. The rules that actually matter</h2>
+<h2>6. The rules that actually matter</h2>
 <p>These encode business correctness. Breaking one produces wrong money, wrong stock, or a
 data leak &mdash; usually with no error message.</p>
 
 <div class="rulecard">
-  <h3>3.1 &nbsp;Role gating lives in two places. Always do both.</h3>
+  <h3>6.1 &nbsp;Role gating lives in two places. Always do both.</h3>
   <p>Financial data is owner-only. That is enforced on the server by <code>IsOwner</code>
   (<code>core/permissions.py</code>) and in the UI by <code>RequireOwner</code> (<code>App.jsx</code>).</p>
   <div class="why"><b>Why:</b> the frontend guard is cosmetic. A staff user who calls the API
@@ -275,7 +616,7 @@ data leak &mdash; usually with no error message.</p>
 </div>
 
 <div class="rulecard">
-  <h3>3.2 &nbsp;Dashboard KPIs are filtered by role in the view</h3>
+  <h3>6.2 &nbsp;Dashboard KPIs are filtered by role in the view</h3>
   <p><code>DashboardView</code> only puts <code>total_available_stock_value</code>,
   <code>todays_sales_total</code> and <code>unpaid_invoice_count</code> in the response when
   <code>is_owner</code>. The frontend renders whichever keys are present.</p>
@@ -284,7 +625,7 @@ data leak &mdash; usually with no error message.</p>
 </div>
 
 <div class="rulecard">
-  <h3>3.3 &nbsp;<code>unit_price</code> is a historical snapshot &mdash; never recompute it</h3>
+  <h3>6.3 &nbsp;<code>unit_price</code> is a historical snapshot &mdash; never recompute it</h3>
   <p><code>OrderItem.unit_price</code> is copied from the product at order-creation time.
   Totals must always be derived from it, never from <code>product.selling_price</code>.</p>
   <div class="why"><b>Why:</b> if you read the live price, raising a product's price retroactively
@@ -292,7 +633,7 @@ data leak &mdash; usually with no error message.</p>
 </div>
 
 <div class="rulecard">
-  <h3>3.4 &nbsp;Stock deduction is FIFO and must run inside a transaction</h3>
+  <h3>6.4 &nbsp;Stock deduction is FIFO and must run inside a transaction</h3>
   <p><code>deduct_stock_fifo()</code> in <code>core/services.py</code> takes from the oldest
   non-expired batches first and uses <code>select_for_update()</code>. Every caller must wrap it in
   <code>transaction.atomic()</code> &mdash; see <code>OrderSerializer.create</code>.</p>
@@ -302,7 +643,7 @@ data leak &mdash; usually with no error message.</p>
 </div>
 
 <div class="rulecard">
-  <h3>3.5 &nbsp;Order status moves one way only</h3>
+  <h3>6.5 &nbsp;Order status moves one way only</h3>
   <p><code>pending → processed → delivered</code>, enforced by <code>ORDER_STATUS_TRANSITIONS</code>.
   <code>status</code> is read-only on <code>OrderSerializer</code>; changes go through
   <code>PATCH /api/orders/{id}/</code> only.</p>
@@ -311,7 +652,7 @@ data leak &mdash; usually with no error message.</p>
 </div>
 
 <div class="rulecard">
-  <h3>3.6 &nbsp;Delivering an order auto-creates its invoice</h3>
+  <h3>6.6 &nbsp;Delivering an order auto-creates its invoice</h3>
   <p><code>ensure_invoice(order)</code> is idempotent (<code>get_or_create</code>). Never create
   <code>Invoice</code> objects by hand elsewhere.</p>
   <div class="why"><b>Why:</b> one order has exactly one invoice (<code>OneToOneField</code>), and the
@@ -319,7 +660,7 @@ data leak &mdash; usually with no error message.</p>
 </div>
 
 <div class="rulecard">
-  <h3>3.7 &nbsp;<code>expiry_status</code> is computed, never stored</h3>
+  <h3>6.7 &nbsp;<code>expiry_status</code> is computed, never stored</h3>
   <p>It is a <code>@property</code> on <code>StockBatch</code> derived from today's date and
   <code>AGEING_THRESHOLD_DAYS = 3</code>. Fresh &gt; 3 days left, ageing ≤ 3 days, expired past.</p>
   <div class="why"><b>Why:</b> a stored column would be stale the next morning. This one constant
@@ -328,7 +669,7 @@ data leak &mdash; usually with no error message.</p>
 </div>
 
 <div class="rulecard">
-  <h3>3.8 &nbsp;Expired stock counts as visible, not as available</h3>
+  <h3>6.8 &nbsp;Expired stock counts as visible, not as available</h3>
   <p>Across <code>InventoryView</code>, <code>DashboardView</code> and
   <code>Product.available_quantity</code>: expired batches are shown and counted, but excluded from
   available quantity and stock value. Batches with <code>quantity == 0</code> are skipped entirely.</p>
@@ -337,7 +678,7 @@ data leak &mdash; usually with no error message.</p>
 </div>
 
 <div class="rulecard">
-  <h3>3.9 &nbsp;Use the custom user model</h3>
+  <h3>6.9 &nbsp;Use the custom user model</h3>
   <p><code>AUTH_USER_MODEL = "core.User"</code>, with a <code>role</code> field of
   <code>owner</code> / <code>staff</code>. Reference it via <code>get_user_model()</code> or
   <code>settings.AUTH_USER_MODEL</code>.</p>
@@ -346,7 +687,7 @@ data leak &mdash; usually with no error message.</p>
 </div>
 
 <div class="rulecard">
-  <h3>3.10 &nbsp;Deletions are deliberately blocked</h3>
+  <h3>6.10 &nbsp;Deletions are deliberately blocked</h3>
   <p><code>Customer → Order</code> and <code>Product → OrderItem</code> use
   <code>on_delete=PROTECT</code>.</p>
   <div class="why"><b>Why:</b> deleting a customer or product that appears in order history would
@@ -354,9 +695,9 @@ data leak &mdash; usually with no error message.</p>
   weakening these.</div>
 </div>
 
-<!-- ============ 4 ============ -->
+<!-- ============ 6 ============ -->
 <div class="pagebreak"></div>
-<h2>4. Backend conventions</h2>
+<h2>7. Backend conventions</h2>
 
 <table>
   <thead><tr><th style="width:26%">Where</th><th>Convention</th></tr></thead>
@@ -378,7 +719,7 @@ data leak &mdash; usually with no error message.</p>
   <li><b>Validation errors as DRF <code>ValidationError</code></b> with a field key, so the frontend's <code>apiErrorMessage</code> can render them.</li>
 </ul>
 
-<h2>5. Frontend conventions</h2>
+<h2>8. Frontend conventions</h2>
 
 <ul>
   <li><b>Always import <code>api</code> from <code>src/api/client.js</code>.</b> It attaches the JWT and
@@ -404,8 +745,8 @@ data leak &mdash; usually with no error message.</p>
   them, and test with the full seeded dataset rather than two products.</p>
 </div>
 
-<!-- ============ 6 ============ -->
-<h2>6. Working with Docker day to day</h2>
+<!-- ============ 8 ============ -->
+<h2>9. Working with Docker day to day</h2>
 
 <p>Your files are mounted into the containers, so <b>editing <code>.py</code>, <code>.jsx</code> or
 <code>.css</code> needs no command</b> &mdash; Django reloads in about a second, Vite hot-swaps the
@@ -453,9 +794,9 @@ module in the browser. Only these need action:</p>
   <code>--renew-anon-volumes</code>.</li>
 </ul>
 
-<!-- ============ 7 ============ -->
+<!-- ============ 9 ============ -->
 <div class="pagebreak"></div>
-<h2>7. Testing &mdash; read this honestly</h2>
+<h2>10. Testing &mdash; read this honestly</h2>
 
 <div class="box stop">
   <span class="lbl">There is no automated test suite</span>
@@ -487,27 +828,16 @@ colours are visible &mdash; keep it that way if you edit it.</p>
   <code>docker compose exec backend python manage.py test</code>.</p>
 </div>
 
-<h2>8. Git conventions</h2>
-<ul>
-  <li>Branch off <code>main</code>; do not commit directly to it.</li>
-  <li>Existing history uses short prefixed subjects &mdash; <code>docs: &hellip;</code>,
-  <code>Phase 4: &hellip;</code>. Keep messages in the imperative and scoped to one change.</li>
-  <li><b>Never commit</b> <code>.env</code>, <code>.venv/</code>, <code>node_modules/</code>,
-  <code>__pycache__/</code>, or <code>*.sqlite3</code>. <code>.gitignore</code> covers these &mdash; do
-  not force-add them.</li>
-  <li><b>Always commit</b> migration files alongside the model change that produced them, and
-  <code>package-lock.json</code> alongside a dependency change.</li>
-  <li>Pull, then <code>docker compose restart backend</code> before assuming something is broken &mdash;
-  it is often just an unapplied migration.</li>
-</ul>
-
-<h2>9. Common mistakes</h2>
+<h2>11. Common mistakes</h2>
 <table>
   <thead><tr><th style="width:44%">Symptom</th><th>Real cause</th></tr></thead>
   <tbody>
-    <tr><td>Field added but missing from the API response</td><td>Not in the serializer's explicit <code>fields</code> list.</td></tr>
-    <tr><td><code>relation "core_&hellip;" does not exist</code></td><td>Migration not generated, or generated but not committed.</td></tr>
+    <tr><td><code>column core_&hellip; does not exist</code></td><td>Migration not generated, or generated but not committed.</td></tr>
     <tr><td>Teammate's app broke after your merge</td><td>Model change committed without its migration file.</td></tr>
+    <tr><td>Your database has columns <code>main</code> doesn't know about</td><td>You tested someone's branch on your normal stack instead of <code>-p dairydesk_pr</code>.</td></tr>
+    <tr><td>Two migrations both numbered <code>0002_</code></td><td>Two people branched at the same time. Second to merge re-runs <code>makemigrations</code>.</td></tr>
+    <tr><td>Your pull request has conflicts</td><td>You branched from stale code. Always <code>git pull</code> on <code>main</code> first.</td></tr>
+    <tr><td>Field added but missing from the API response</td><td>Not in the serializer's explicit <code>fields</code> list.</td></tr>
     <tr><td>Staff can see money</td><td>Missing <code>IsOwner</code> server-side, or a KPI added outside the <code>is_owner</code> block.</td></tr>
     <tr><td>Requests 401 after a few hours</td><td>Bypassed the shared <code>api</code> client, so the refresh interceptor never ran.</td></tr>
     <tr><td>Old invoice totals changed by themselves</td><td>Reading <code>product.selling_price</code> instead of <code>OrderItem.unit_price</code>.</td></tr>

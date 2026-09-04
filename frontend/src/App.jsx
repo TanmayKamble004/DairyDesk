@@ -11,6 +11,8 @@ import Orders from './pages/Orders'
 import ProductForm from './pages/ProductForm'
 import Products from './pages/Products'
 import Reports from './pages/Reports'
+import Staff from './pages/Staff'
+import StaffForm from './pages/StaffForm'
 import StockLevels from './pages/StockLevels'
 import SupplierForm from './pages/SupplierForm'
 import Suppliers from './pages/Suppliers'
@@ -76,6 +78,33 @@ export default function App() {
                 element={
                   <RequireOwner>
                     <Invoices />
+                  </RequireOwner>
+                }
+              />
+              {/* Who can sign in, and as what. The API refuses staff outright;
+                  these gates only keep the pages out of their way. Unlike
+                  products, even the form is owner-only — it sets passwords. */}
+              <Route
+                path="/staff"
+                element={
+                  <RequireOwner>
+                    <Staff />
+                  </RequireOwner>
+                }
+              />
+              <Route
+                path="/staff/new"
+                element={
+                  <RequireOwner>
+                    <StaffForm />
+                  </RequireOwner>
+                }
+              />
+              <Route
+                path="/staff/:id/edit"
+                element={
+                  <RequireOwner>
+                    <StaffForm />
                   </RequireOwner>
                 }
               />

@@ -17,9 +17,19 @@ from core.models import (
     Supplier,
     User,
 )
+from core.services import next_invoice_number
 
 OWNER_CREDENTIALS = ("owner", "owner123")
 STAFF_CREDENTIALS = ("staff", "staff123")
+
+# Extra people so the owner's Staff page has a roster to manage rather than
+# two bare logins. Amit is switched off: someone who has left, kept because his
+# name is on past orders. username, password, first, last, role, is_active
+EXTRA_USERS = [
+    ("rohit", "rohit123", "Rohit", "Kadam", User.Role.OWNER, True),
+    ("sneha", "sneha123", "Sneha", "Patil", User.Role.STAFF, True),
+    ("amit", "amit123", "Amit", "Shirke", User.Role.STAFF, False),
+]
 
 # name, sku, category, unit, selling_price, reorder_threshold, reorder_quantity, supplier
 PRODUCTS = [
@@ -97,21 +107,37 @@ class Command(BaseCommand):
         Product.objects.all().delete()
         # After products: Product.supplier is PROTECT.
         Supplier.objects.all().delete()
-        User.objects.filter(username__in=[OWNER_CREDENTIALS[0], STAFF_CREDENTIALS[0]]).delete()
+        seeded_usernames = [OWNER_CREDENTIALS[0], STAFF_CREDENTIALS[0]]
+        seeded_usernames += [username for username, *_ in EXTRA_USERS]
+        User.objects.filter(username__in=seeded_usernames).delete()
 
         # Users — owner is a superuser so admin is usable straight away.
         owner = User.objects.create_superuser(
             username=OWNER_CREDENTIALS[0],
             password=OWNER_CREDENTIALS[1],
             email="owner@dairydesk.local",
+            first_name="Priya",
+            last_name="Deshmukh",
             role=User.Role.OWNER,
         )
         staff = User.objects.create_user(
             username=STAFF_CREDENTIALS[0],
             password=STAFF_CREDENTIALS[1],
             email="staff@dairydesk.local",
+            first_name="Nikhil",
+            last_name="Jadhav",
             role=User.Role.STAFF,
         )
+        for username, password, first, last, role, active in EXTRA_USERS:
+            User.objects.create_user(
+                username=username,
+                password=password,
+                email=f"{username}@dairydesk.local",
+                first_name=first,
+                last_name=last,
+                role=role,
+                is_active=active,
+            )
 
         # Suppliers first — products point at them.
         suppliers = {}
@@ -180,6 +206,9 @@ class Command(BaseCommand):
                     paid_amount, inv_status = paid, Invoice.Status.PARTIAL
                 Invoice.objects.create(
                     order=order,
+                    # Same generator the delivery flow uses, so seeded bills
+                    # continue the year's sequence instead of starting a rival.
+                    number=next_invoice_number(),
                     total_amount=total,
                     paid_amount=paid_amount,
                     status=inv_status,
@@ -187,9 +216,12 @@ class Command(BaseCommand):
                 invoice_count += 1
 
         self.stdout.write(self.style.SUCCESS("Demo data seeded."))
-        self.stdout.write(f"  Users:        2 (owner + staff)")
+        self.stdout.write(f"  Users:        {2 + len(EXTRA_USERS)}")
         self.stdout.write(f"    owner login: {OWNER_CREDENTIALS[0]} / {OWNER_CREDENTIALS[1]} (superuser)")
         self.stdout.write(f"    staff login: {STAFF_CREDENTIALS[0]} / {STAFF_CREDENTIALS[1]}")
+        for username, password, first, last, role, active in EXTRA_USERS:
+            state = "" if active else ", disabled"
+            self.stdout.write(f"    {username} / {password} — {first} {last} ({role}{state})")
         self.stdout.write(f"  Products:     {len(products)}")
         self.stdout.write(f"  Suppliers:    {len(SUPPLIERS)}")
         self.stdout.write(f"  StockBatches: {batch_count}")

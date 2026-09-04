@@ -34,6 +34,10 @@ const BADGE_STYLES = {
   unpaid: 'bg-expired-soft text-expired-ink',
   partial: 'bg-ageing-soft text-ageing-ink',
   paid: 'bg-fresh-soft text-fresh-ink',
+  // Staff account states. Disabled is neutral, not red: someone on leave is
+  // not an error condition.
+  active: 'bg-fresh-soft text-fresh-ink',
+  disabled: 'bg-neutral-soft text-neutral-ink',
 }
 
 const BADGE_DOTS = {
@@ -46,6 +50,8 @@ const BADGE_DOTS = {
   unpaid: 'bg-expired',
   partial: 'bg-ageing',
   paid: 'bg-fresh',
+  active: 'bg-fresh',
+  disabled: 'bg-empty',
 }
 
 export function Badge({ value }) {

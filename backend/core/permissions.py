@@ -24,3 +24,9 @@ class IsOwner(BasePermission):
 
     def has_permission(self, request, view):
         return is_owner(request.user)
+
+
+class CanManageStaff(IsOwner):
+    """The same rule, worded for the one owner-only surface that isn't money."""
+
+    message = "Only the owner can manage staff accounts."

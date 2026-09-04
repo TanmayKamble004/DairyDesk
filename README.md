@@ -136,12 +136,18 @@ curl http://localhost:8000/api/health/     # -> {"status":"ok"}
 
 ### 3. Log in
 
-Seeding creates two accounts:
+Seeding creates five accounts:
 
 | Role | Username | Password |
 |------|----------|----------|
 | **Owner** (full access + Django admin) | `owner` | `owner123` |
 | **Staff** (limited access) | `staff` | `staff123` |
+| Owner — Rohit Kadam | `rohit` | `rohit123` |
+| Staff — Sneha Patil | `sneha` | `sneha123` |
+| Staff — Amit Shirke, **disabled** | `amit` | `amit123` |
+
+Amit is seeded switched off so the owner's **Staff** page has a disabled account
+to re-enable. Signing in as him fails until an owner switches him back on.
 
 To reset the demo data at any time:
 
