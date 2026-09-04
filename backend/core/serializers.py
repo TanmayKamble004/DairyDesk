@@ -1,6 +1,8 @@
 """DRF serializers for the API (spec section 4)."""
 from decimal import Decimal
 
+from django.contrib.auth import password_validation
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
@@ -15,6 +17,7 @@ from .models import (
     PurchaseOrder,
     StockBatch,
     Supplier,
+    User,
 )
 from .permissions import is_owner
 from .services import (
@@ -40,6 +43,114 @@ class LoginSerializer(TokenObtainPairSerializer):
         data["username"] = self.user.username
         data["role"] = self.user.role
         return data
+
+
+def check_password_strength(password, user):
+    """Run Django's configured password validators and report a 400, not a 500.
+
+    `user` is what the similarity validator compares against, so a password
+    that is just the person's own username is caught before it is stored.
+    """
+    try:
+        password_validation.validate_password(password, user)
+    except DjangoValidationError as error:
+        raise serializers.ValidationError({"password": list(error.messages)}) from error
+
+
+class StaffSerializer(serializers.ModelSerializer):
+    """A person who can sign in to this store. Owner-only — see StaffViewSet.
+
+    Nobody here is ever deleted: their name is attached to past orders and
+    invoices, so removing the row would orphan trading history. `is_active` is
+    the off switch instead — SimpleJWT refuses to issue a token for an inactive
+    user *and* rejects the ones already issued, so switching someone off ends
+    their session rather than merely blocking the next login.
+    """
+
+    full_name = serializers.SerializerMethodField()
+    # Redeclared because the model allows a blank first name; a staff list
+    # showing bare usernames is not the page this feeds.
+    first_name = serializers.CharField(max_length=150)
+    email = serializers.EmailField()
+    # Explicit default because DRF reads a *missing* boolean in form-encoded
+    # data as an unchecked checkbox — False — which would silently create every
+    # new member already disabled. PATCH is unaffected: partial updates skip
+    # defaults, so an edit that says nothing about `is_active` leaves it alone.
+    is_active = serializers.BooleanField(default=True)
+    # Write-only, and only on create. Changing an existing password goes
+    # through set-password/, so a routine detail edit can never rewrite one.
+    password = serializers.CharField(write_only=True, required=False)
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "username",
+            "first_name",
+            "last_name",
+            "full_name",
+            "email",
+            "role",
+            "is_active",
+            "last_login",
+            "date_joined",
+            "password",
+        ]
+        read_only_fields = ["last_login", "date_joined"]
+
+    def get_full_name(self, user):
+        return user.get_full_name() or user.username
+
+    def validate_email(self, email):
+        """Not unique on the model, but two people sharing one is a mistake."""
+        clashes = User.objects.filter(email__iexact=email.strip())
+        if self.instance:
+            clashes = clashes.exclude(pk=self.instance.pk)
+        if clashes.exists():
+            raise serializers.ValidationError("Another staff member already uses this email.")
+        return email.strip()
+
+    def validate(self, attrs):
+        password = attrs.get("password")
+
+        if self.instance is None:
+            if not password:
+                raise serializers.ValidationError(
+                    {"password": "Set a password — it is what this person signs in with."}
+                )
+            # Unsaved, purely so the similarity validator has a name and email
+            # to compare the password against.
+            check_password_strength(password, User(**{
+                field: attrs.get(field, "")
+                for field in ["username", "first_name", "last_name", "email"]
+            }))
+        elif password:
+            raise serializers.ValidationError(
+                {"password": "Use the reset-password action to change an existing password."}
+            )
+
+        return attrs
+
+    def create(self, validated_data):
+        password = validated_data.pop("password")
+        staff = User(**validated_data)
+        staff.set_password(password)
+        staff.save()
+        return staff
+
+
+class StaffPasswordSerializer(serializers.Serializer):
+    """POST /api/staff/{id}/set-password/ — the owner setting a new password.
+
+    No current-password field: this is the owner resetting someone else's
+    forgotten password, not a person changing their own.
+    """
+
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        check_password_strength(attrs["password"], self.context["staff"])
+        return attrs
 
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -365,9 +476,13 @@ class InvoiceSerializer(serializers.ModelSerializer):
         model = Invoice
         fields = [
             "id",
+            # Read-only by construction: `number` is editable=False on the
+            # model and `created_at` is auto_now_add.
+            "number",
             "order",
             "customer_name",
             "order_status",
+            "created_at",
             "total_amount",
             "paid_amount",
             "status",

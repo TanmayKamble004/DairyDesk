@@ -2,10 +2,18 @@
 from collections import defaultdict
 from decimal import Decimal
 
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework import serializers
 
 from .models import Invoice, Product, PurchaseOrder
+
+# Bill numbers look like INV-2026-0001 and restart each calendar year, the way
+# a shop's bill book does.
+INVOICE_NUMBER_PREFIX = "INV"
+INVOICE_NUMBER_WIDTH = 4
+# Retries for the (rare) case of two deliveries confirmed at the same instant.
+INVOICE_NUMBER_ATTEMPTS = 5
 
 
 def deduct_stock_fifo(product_quantities):
@@ -102,16 +110,58 @@ def fulfil_purchase_orders(product):
     )
 
 
+def next_invoice_number(when=None):
+    """The next bill number for `when`'s year, as INV-<year>-<sequence>.
+
+    Reads the newest invoice of that year rather than counting them, so a
+    deleted bill never causes a number to be handed out twice. Ordering is by
+    id, not by the number string: ids are assigned in creation order, while a
+    lexical sort on the number would put "10000" before "9999" once a year runs
+    past the padding width.
+
+    This only proposes a number — uniqueness is the column's job. See
+    ensure_invoice for the collision handling.
+    """
+    year = (when or timezone.localdate()).year
+    prefix = f"{INVOICE_NUMBER_PREFIX}-{year}-"
+    latest = (
+        Invoice.objects.filter(number__startswith=prefix)
+        .order_by("-id")
+        .values_list("number", flat=True)
+        .first()
+    )
+    sequence = int(latest.rsplit("-", 1)[1]) + 1 if latest else 1
+    return f"{prefix}{sequence:0{INVOICE_NUMBER_WIDTH}d}"
+
+
 def ensure_invoice(order):
     """Create the order's invoice if it doesn't exist yet (idempotent).
 
     total_amount = sum of quantity x unit_price over the order's items.
     """
+    existing = Invoice.objects.filter(order=order).first()
+    if existing:
+        return existing
+
     total = sum(
         (item.quantity * item.unit_price for item in order.items.all()),
         Decimal("0"),
     )
-    invoice, _ = Invoice.objects.get_or_create(
-        order=order, defaults={"total_amount": total}
-    )
-    return invoice
+
+    for attempt in range(INVOICE_NUMBER_ATTEMPTS):
+        try:
+            # Its own savepoint: callers run inside a transaction, and an
+            # IntegrityError would otherwise poison the whole thing rather than
+            # letting us try the next number.
+            with transaction.atomic():
+                return Invoice.objects.create(
+                    order=order, total_amount=total, number=next_invoice_number()
+                )
+        except IntegrityError:
+            # Either another delivery took the number we picked, or it invoiced
+            # this same order first. The second case is already the answer.
+            raced = Invoice.objects.filter(order=order).first()
+            if raced:
+                return raced
+            if attempt == INVOICE_NUMBER_ATTEMPTS - 1:
+                raise

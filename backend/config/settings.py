@@ -162,6 +162,9 @@ REST_FRAMEWORK = {
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(hours=8),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    # Off by default in SimpleJWT — without it `last_login` never moves and the
+    # Staff page's "Last login" column would read "Never" for everyone.
+    "UPDATE_LAST_LOGIN": True,
 }
 
 # CORS — allow the Vite dev server origin.

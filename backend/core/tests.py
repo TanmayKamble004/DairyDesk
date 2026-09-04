@@ -8,6 +8,7 @@ from io import StringIO
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
+from django.db import IntegrityError, transaction
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from PIL import Image
@@ -16,6 +17,7 @@ from rest_framework.test import APITestCase
 
 from .models import (
     Customer,
+    Invoice,
     Order,
     OrderItem,
     Product,
@@ -24,12 +26,16 @@ from .models import (
     Supplier,
     User,
 )
+from .services import ensure_invoice, next_invoice_number
 
 STOCK_BATCHES_URL = "/api/stock-batches/"
 PRODUCTS_URL = "/api/products/"
 CATEGORIES_URL = "/api/products/categories/"
 SUPPLIERS_URL = "/api/suppliers/"
 PURCHASE_ORDERS_URL = "/api/purchase-orders/"
+CUSTOMERS_URL = "/api/customers/"
+STAFF_URL = "/api/staff/"
+LOGIN_URL = "/api/auth/login/"
 
 
 def make_supplier(name="Sunrise Dairy Co.", **overrides):
@@ -728,6 +734,458 @@ class AutoReorderTests(APITestCase):
             self.client.get(PURCHASE_ORDERS_URL).status_code,
             status.HTTP_401_UNAUTHORIZED,
         )
+
+
+class InvoiceNumberTests(APITestCase):
+    """Every bill carries a unique number and the date it was raised."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = User.objects.create_user(
+            username="owner-invoice", password="pw", role=User.Role.OWNER
+        )
+        cls.customer = Customer.objects.create(name="Cafe Aroma", phone="9812233445")
+
+    def setUp(self):
+        self.supplier = make_supplier()
+        self.product = Product.objects.create(
+            name="Toned Milk",
+            sku="MLK-1002",
+            category="Milk",
+            supplier=self.supplier,
+            unit=Product.Unit.LITRE,
+            selling_price="54.00",
+        )
+        StockBatch.objects.create(
+            product=self.product,
+            quantity=500,
+            purchase_price="47.00",
+            expiry_date=timezone.localdate() + timedelta(days=10),
+        )
+        self.client.force_authenticate(self.owner)
+
+    def deliver_an_order(self, quantity=2):
+        """Place an order and walk it to delivered, which raises the invoice."""
+        order = self.client.post(
+            "/api/orders/",
+            {
+                "customer": self.customer.id,
+                "items": [{"product": self.product.id, "quantity": quantity}],
+            },
+            format="json",
+        ).data
+        for status_name in ["processed", "delivered"]:
+            self.client.patch(
+                f"/api/orders/{order['id']}/", {"status": status_name}, format="json"
+            )
+        return Invoice.objects.get(order_id=order["id"])
+
+    def test_delivery_raises_a_numbered_dated_invoice(self):
+        invoice = self.deliver_an_order()
+        self.assertEqual(invoice.number, f"INV-{timezone.localdate().year}-0001")
+        self.assertIsNotNone(invoice.created_at)
+
+    def test_numbers_run_in_sequence(self):
+        numbers = [self.deliver_an_order().number for _ in range(3)]
+        year = timezone.localdate().year
+        self.assertEqual(
+            numbers, [f"INV-{year}-0001", f"INV-{year}-0002", f"INV-{year}-0003"]
+        )
+
+    def test_the_sequence_restarts_each_year(self):
+        Invoice.objects.create(
+            order=Order.objects.create(customer=self.customer),
+            number="INV-2025-0009",
+            total_amount="100.00",
+        )
+        self.assertEqual(next_invoice_number(), f"INV-{timezone.localdate().year}-0001")
+
+    def test_a_deleted_bill_does_not_free_its_number(self):
+        """Numbering reads the newest row, not a count, so gaps stay gaps."""
+        first = self.deliver_an_order()
+        second = self.deliver_an_order()
+        first.delete()
+        year = timezone.localdate().year
+        self.assertEqual(second.number, f"INV-{year}-0002")
+        self.assertEqual(next_invoice_number(), f"INV-{year}-0003")
+
+    def test_numbers_are_unique_in_the_database(self):
+        taken = self.deliver_an_order().number
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Invoice.objects.create(
+                    order=Order.objects.create(customer=self.customer),
+                    number=taken,
+                    total_amount="10.00",
+                )
+
+    def test_re_delivering_does_not_raise_a_second_invoice(self):
+        """ensure_invoice is idempotent — and must not burn a number either."""
+        invoice = self.deliver_an_order()
+        again = ensure_invoice(invoice.order)
+        self.assertEqual(again.pk, invoice.pk)
+        self.assertEqual(again.number, invoice.number)
+        self.assertEqual(Invoice.objects.count(), 1)
+
+    def test_the_api_reports_the_number_and_date(self):
+        self.deliver_an_order()
+        row = self.client.get("/api/invoices/").data[0]
+        self.assertEqual(row["number"], f"INV-{timezone.localdate().year}-0001")
+        self.assertIn("created_at", row)
+
+    def test_the_number_cannot_be_set_over_the_api(self):
+        """It is the bill's identity, not a field anyone edits."""
+        self.deliver_an_order()
+        invoice = Invoice.objects.get()
+        res = self.client.patch(
+            f"/api/invoices/{invoice.id}/", {"number": "INV-2026-9999"}, format="json"
+        )
+        # The viewset is read-only, so this is refused outright.
+        self.assertEqual(res.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        invoice.refresh_from_db()
+        self.assertNotEqual(invoice.number, "INV-2026-9999")
+
+    def test_newest_bill_is_listed_first(self):
+        self.deliver_an_order()
+        newest = self.deliver_an_order()
+        self.assertEqual(self.client.get("/api/invoices/").data[0]["number"], newest.number)
+
+
+class CustomerTests(APITestCase):
+    """Customers are added from the order form and removed only by the owner."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = User.objects.create_user(
+            username="owner-customer", password="pw", role=User.Role.OWNER
+        )
+        cls.staff = User.objects.create_user(
+            username="staff-customer", password="pw", role=User.Role.STAFF
+        )
+
+    def setUp(self):
+        self.customer = Customer.objects.create(
+            name="Sharma General Store",
+            phone="9820011223",
+            address="Shop 4, SV Road, Andheri West",
+        )
+        self.url = f"{CUSTOMERS_URL}{self.customer.id}/"
+
+    def test_staff_can_add_a_customer_mid_order(self):
+        self.client.force_authenticate(self.staff)
+        res = self.client.post(
+            CUSTOMERS_URL,
+            {"name": "Cafe Aroma", "phone": "9812233445", "address": "FC Road, Pune"},
+        )
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Customer.objects.get(id=res.data["id"]).name, "Cafe Aroma")
+
+    def test_name_and_phone_are_required(self):
+        self.client.force_authenticate(self.staff)
+        for field in ["name", "phone"]:
+            with self.subTest(missing=field):
+                payload = {"name": "Cafe Aroma", "phone": "9812233445"}
+                payload.pop(field)
+                res = self.client.post(CUSTOMERS_URL, payload)
+                self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn(field, res.data)
+
+    def test_address_is_optional(self):
+        """A walk-in buyer has a name and a number, and nothing else."""
+        self.client.force_authenticate(self.staff)
+        res = self.client.post(CUSTOMERS_URL, {"name": "Walk-in", "phone": "9800000000"})
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Customer.objects.get(id=res.data["id"]).address, "")
+
+    def test_owner_can_delete_an_unused_customer(self):
+        self.client.force_authenticate(self.owner)
+        res = self.client.delete(self.url)
+        self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Customer.objects.filter(id=self.customer.id).exists())
+
+    def test_staff_cannot_delete_a_customer(self):
+        self.client.force_authenticate(self.staff)
+        res = self.client.delete(self.url)
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(Customer.objects.filter(id=self.customer.id).exists())
+
+    def test_deleting_a_customer_with_orders_is_refused(self):
+        """Order.customer is PROTECT — without this check it would be a 500."""
+        Order.objects.create(customer=self.customer)
+        self.client.force_authenticate(self.owner)
+        res = self.client.delete(self.url)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("1 order(s)", res.data["detail"])
+        self.assertTrue(Customer.objects.filter(id=self.customer.id).exists())
+
+    def test_anonymous_cannot_reach_customers(self):
+        self.assertEqual(
+            self.client.get(CUSTOMERS_URL).status_code, status.HTTP_401_UNAUTHORIZED
+        )
+
+
+class StaffManagementTests(APITestCase):
+    """The owner-only staff roster: add, disable, re-enable, reset passwords."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            username="owner-staffadmin",
+            password="pw",
+            email="owner@dairydesk.local",
+            first_name="Priya",
+            last_name="Deshmukh",
+            role=User.Role.OWNER,
+        )
+        self.member = User.objects.create_user(
+            username="sneha",
+            password="Kolhapur#2026",
+            email="sneha@dairydesk.local",
+            first_name="Sneha",
+            last_name="Patil",
+            role=User.Role.STAFF,
+        )
+        self.member_url = f"{STAFF_URL}{self.member.id}/"
+        self.client.force_authenticate(self.owner)
+
+    def payload(self, **overrides):
+        return {
+            "username": "amit",
+            "first_name": "Amit",
+            "last_name": "Shirke",
+            "email": "amit@dairydesk.local",
+            "role": User.Role.STAFF,
+            "password": "Ratnagiri#2026",
+            **overrides,
+        }
+
+    # --- Access ---------------------------------------------------------
+
+    def test_staff_cannot_reach_the_roster(self):
+        """The whole surface is owner-only, reads included."""
+        self.client.force_authenticate(self.member)
+        refused = self.client.get(STAFF_URL)
+        self.assertEqual(refused.status_code, status.HTTP_403_FORBIDDEN)
+        # Not the inherited "financial data" wording — this gate is not money.
+        self.assertIn("manage staff", refused.data["detail"])
+        self.assertEqual(
+            self.client.post(STAFF_URL, self.payload()).status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+        self.assertEqual(
+            self.client.patch(self.member_url, {"is_active": False}).status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_anonymous_cannot_reach_the_roster(self):
+        self.client.force_authenticate(None)
+        self.assertEqual(self.client.get(STAFF_URL).status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_owners_are_listed_before_staff(self):
+        res = self.client.get(STAFF_URL)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual([row["role"] for row in res.data], ["owner", "staff"])
+        self.assertEqual(res.data[0]["full_name"], "Priya Deshmukh")
+
+    # --- Adding ---------------------------------------------------------
+
+    def test_owner_can_add_a_member_who_can_then_sign_in(self):
+        res = self.client.post(STAFF_URL, self.payload())
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        added = User.objects.get(username="amit")
+        self.assertEqual(added.role, User.Role.STAFF)
+        self.assertTrue(added.is_active)
+
+        self.client.force_authenticate(None)
+        signin = self.client.post(
+            LOGIN_URL, {"username": "amit", "password": "Ratnagiri#2026"}
+        )
+        self.assertEqual(signin.status_code, status.HTTP_200_OK)
+        self.assertEqual(signin.data["role"], "staff")
+
+    def test_the_password_is_hashed_and_never_read_back(self):
+        res = self.client.post(STAFF_URL, self.payload())
+        self.assertNotIn("password", res.data)
+        added = User.objects.get(username="amit")
+        self.assertNotEqual(added.password, "Ratnagiri#2026")
+        self.assertTrue(added.check_password("Ratnagiri#2026"))
+
+    def test_a_member_can_be_added_as_an_owner(self):
+        res = self.client.post(STAFF_URL, self.payload(role=User.Role.OWNER))
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(User.objects.get(username="amit").role, User.Role.OWNER)
+
+    def test_a_weak_password_is_refused(self):
+        res = self.client.post(STAFF_URL, self.payload(password="123"))
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("password", res.data)
+        self.assertFalse(User.objects.filter(username="amit").exists())
+
+    def test_a_password_that_is_just_the_username_is_refused(self):
+        """The similarity validator needs the user it is comparing against."""
+        res = self.client.post(STAFF_URL, self.payload(password="amit"))
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("password", res.data)
+
+    def test_a_member_without_a_password_is_refused(self):
+        payload = self.payload()
+        payload.pop("password")
+        res = self.client.post(STAFF_URL, payload)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("password", res.data)
+
+    def test_name_and_email_are_required(self):
+        for field in ["username", "first_name", "email"]:
+            with self.subTest(missing=field):
+                payload = self.payload()
+                payload.pop(field)
+                res = self.client.post(STAFF_URL, payload)
+                self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn(field, res.data)
+
+    def test_a_duplicate_username_is_refused(self):
+        res = self.client.post(STAFF_URL, self.payload(username="sneha"))
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("username", res.data)
+
+    def test_a_duplicate_email_is_refused(self):
+        """Not a database constraint, so the serializer has to catch it."""
+        res = self.client.post(STAFF_URL, self.payload(email="SNEHA@dairydesk.local"))
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("email", res.data)
+
+    def test_keeping_your_own_email_while_editing_is_not_a_duplicate(self):
+        res = self.client.patch(self.member_url, {"email": "sneha@dairydesk.local"})
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+    # --- Disabling and re-enabling --------------------------------------
+
+    def test_disabling_stops_the_member_signing_in(self):
+        res = self.client.patch(self.member_url, {"is_active": False})
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertFalse(User.objects.get(pk=self.member.pk).is_active)
+
+        self.client.force_authenticate(None)
+        signin = self.client.post(
+            LOGIN_URL, {"username": "sneha", "password": "Kolhapur#2026"}
+        )
+        self.assertEqual(signin.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_a_disabled_member_keeps_their_order_history(self):
+        """The point of disabling rather than deleting: nothing is orphaned."""
+        self.client.patch(self.member_url, {"is_active": False})
+        self.assertTrue(User.objects.filter(pk=self.member.pk).exists())
+        self.assertEqual(User.objects.get(pk=self.member.pk).username, "sneha")
+
+    def test_re_enabling_restores_the_login(self):
+        self.member.is_active = False
+        self.member.save(update_fields=["is_active"])
+        res = self.client.patch(self.member_url, {"is_active": True})
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+        self.client.force_authenticate(None)
+        signin = self.client.post(
+            LOGIN_URL, {"username": "sneha", "password": "Kolhapur#2026"}
+        )
+        self.assertEqual(signin.status_code, status.HTTP_200_OK)
+
+    def test_a_disabled_members_existing_token_stops_working(self):
+        """Switching someone off has to end the session, not just the next login."""
+        token = self.client.post(
+            LOGIN_URL, {"username": "sneha", "password": "Kolhapur#2026"}
+        ).data["access"]
+        self.client.patch(self.member_url, {"is_active": False})
+
+        self.client.force_authenticate(None)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+        self.assertEqual(
+            self.client.get(PRODUCTS_URL).status_code, status.HTTP_401_UNAUTHORIZED
+        )
+
+    def test_nobody_can_be_deleted(self):
+        res = self.client.delete(self.member_url)
+        self.assertEqual(res.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertTrue(User.objects.filter(pk=self.member.pk).exists())
+
+    # --- Lockout guards --------------------------------------------------
+
+    def test_an_owner_cannot_disable_themselves(self):
+        res = self.client.patch(f"{STAFF_URL}{self.owner.id}/", {"is_active": False})
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue(User.objects.get(pk=self.owner.pk).is_active)
+
+    def test_an_owner_cannot_demote_themselves(self):
+        res = self.client.patch(f"{STAFF_URL}{self.owner.id}/", {"role": User.Role.STAFF})
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(User.objects.get(pk=self.owner.pk).role, User.Role.OWNER)
+
+    def test_the_last_owner_cannot_be_disabled_by_another_owner(self):
+        second = User.objects.create_user(
+            username="second-owner",
+            password="pw",
+            email="second@dairydesk.local",
+            first_name="Rohit",
+            role=User.Role.OWNER,
+        )
+        # The second owner disables the first — allowed, two owners exist.
+        self.client.force_authenticate(second)
+        first = self.client.patch(f"{STAFF_URL}{self.owner.id}/", {"is_active": False})
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+
+        # Now `second` is the only active owner, and nobody may switch it off.
+        self.client.force_authenticate(self.owner)  # still authorised in-process
+        res = self.client.patch(f"{STAFF_URL}{second.id}/", {"is_active": False})
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("only active owner", res.data["detail"])
+        self.assertTrue(User.objects.get(pk=second.pk).is_active)
+
+    def test_promoting_a_member_to_owner_is_allowed(self):
+        res = self.client.patch(self.member_url, {"role": User.Role.OWNER})
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(User.objects.get(pk=self.member.pk).role, User.Role.OWNER)
+
+    # --- Password resets -------------------------------------------------
+
+    def test_owner_can_reset_a_forgotten_password(self):
+        res = self.client.post(
+            f"{self.member_url}set-password/", {"password": "Panchgani#2026"}
+        )
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.member.refresh_from_db()
+        self.assertTrue(self.member.check_password("Panchgani#2026"))
+        self.assertFalse(self.member.check_password("Kolhapur#2026"))
+
+    def test_a_weak_reset_password_is_refused(self):
+        res = self.client.post(f"{self.member_url}set-password/", {"password": "sneha"})
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.member.refresh_from_db()
+        self.assertTrue(self.member.check_password("Kolhapur#2026"))
+
+    def test_staff_cannot_reset_anyones_password(self):
+        self.client.force_authenticate(self.member)
+        res = self.client.post(
+            f"{self.member_url}set-password/", {"password": "Panchgani#2026"}
+        )
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_a_detail_edit_cannot_carry_a_password(self):
+        """Otherwise a routine name change could silently rewrite one."""
+        res = self.client.patch(self.member_url, {"password": "Panchgani#2026"})
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.member.refresh_from_db()
+        self.assertTrue(self.member.check_password("Kolhapur#2026"))
+
+    # --- Last login ------------------------------------------------------
+
+    def test_last_login_starts_empty_and_is_recorded_on_sign_in(self):
+        row = next(r for r in self.client.get(STAFF_URL).data if r["username"] == "sneha")
+        self.assertIsNone(row["last_login"])
+
+        self.client.force_authenticate(None)
+        self.client.post(LOGIN_URL, {"username": "sneha", "password": "Kolhapur#2026"})
+
+        self.client.force_authenticate(self.owner)
+        row = next(r for r in self.client.get(STAFF_URL).data if r["username"] == "sneha")
+        self.assertIsNotNone(row["last_login"])
 
 
 class SeedDemoTests(TestCase):

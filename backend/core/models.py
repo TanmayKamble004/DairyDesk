@@ -220,9 +220,22 @@ class Invoice(models.Model):
         PAID = "paid", "Paid"
 
     order = models.OneToOneField(Order, on_delete=models.CASCADE, related_name="invoice")
+    # The bill number the customer quotes back over the phone: INV-<year>-<seq>,
+    # unique and never reused. The primary key identifies the row for this app;
+    # this identifies the bill for everyone else. Assigned by
+    # services.next_invoice_number, so it is not editable by hand.
+    number = models.CharField(max_length=20, unique=True, editable=False)
+    # When the bill was raised — the moment its order was marked delivered,
+    # which is not the same as when the order was placed.
+    created_at = models.DateTimeField(auto_now_add=True)
     total_amount = models.DecimalField(max_digits=12, decimal_places=2)
     paid_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.UNPAID)
 
+    class Meta:
+        # Newest bill first, matching Orders. Without an explicit ordering the
+        # row order is whatever Postgres returns, which shifts as rows update.
+        ordering = ["-created_at", "-id"]
+
     def __str__(self):
-        return f"Invoice for order #{self.order_id} ({self.status})"
+        return f"{self.number} for order #{self.order_id} ({self.status})"

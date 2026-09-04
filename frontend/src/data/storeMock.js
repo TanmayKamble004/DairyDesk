@@ -1,11 +1,13 @@
 /**
  * Store-inventory demo data, ported from the standalone dairydesk-inventory
- * build so the Products / Stock Levels / Suppliers / Reports / Alerts pages
- * render the same figures here as they do there.
+ * build so the Stock Levels and Reports pages render the same figures here as
+ * they do there.
  *
- * This is deliberately mock data: the Django backend models batches and
- * expiry, not SKUs, reorder points, suppliers or stock movement. Swap each
- * export for a fetch once those endpoints exist.
+ * This is deliberately mock data: it describes a store nobody stocks. Products,
+ * Inventory and Alerts have moved to the API; the pages still importing PRODUCTS
+ * and MOVEMENT are the ones with no endpoint behind them yet. Swap each export
+ * for a fetch as those endpoints arrive, and this file shrinks to the
+ * formatting helpers below.
  */
 
 export const STORE = {
@@ -108,15 +110,6 @@ export const MOVEMENT = (() => {
   return rows
 })()
 
-export const DEFAULT_THRESHOLDS = {
-  lowStock: 25,
-  reorderPoint: 30,
-  overstockLimit: 200,
-  criticalStock: 10,
-}
-
-export const THRESHOLD_KEY = 'dairydesk_thresholds'
-
 /* ------------------------------ Formatting ------------------------------ */
 
 export const inr = (n) => '₹' + Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 })
@@ -133,6 +126,25 @@ export const fmtDate = (iso) => {
 
 export const fmtTime = (d) =>
   d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', second: '2-digit' })
+
+/** A moment in time, with the two recent days named rather than dated. */
+export const fmtDateTime = (iso) => {
+  if (!iso) return '—'
+  const at = new Date(iso)
+  if (Number.isNaN(at.getTime())) return iso
+
+  const time = at.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })
+
+  // Compare whole days, not elapsed hours: "yesterday at 23:50" is yesterday
+  // even when it was forty minutes ago. Rounding absorbs DST shifts.
+  const startOfToday = new Date().setHours(0, 0, 0, 0)
+  const startOfThatDay = new Date(at).setHours(0, 0, 0, 0)
+  const daysAgo = Math.round((startOfToday - startOfThatDay) / 86400000)
+
+  if (daysAgo <= 0) return `Today, ${time}`
+  if (daysAgo === 1) return `Yesterday, ${time}`
+  return `${fmtDate(iso)}, ${time}`
+}
 
 /* ------------------------------- Derived -------------------------------- */
 
@@ -168,59 +180,6 @@ export function categoryRollup(products = PRODUCTS) {
               : 'Healthy'
       return { name, ...c, ratio, tone, label }
     })
-}
-
-/** Alerts derived from live stock levels against the saved thresholds. */
-export function buildAlerts(thresholds, products = PRODUCTS, orders = STORE_ORDERS) {
-  const t = thresholds
-  const list = []
-
-  for (const p of products) {
-    if (p.quantity === 0) {
-      list.push({
-        sev: 'Critical', icon: 'ban',
-        title: `Out of stock: ${p.name}`,
-        desc: `${p.sku} · reorder point is ${p.reorderPoint} units. Raise a purchase order.`,
-      })
-    } else if (p.quantity <= t.criticalStock) {
-      list.push({
-        sev: 'Critical', icon: 'warn',
-        title: `Critically low: ${p.name}`,
-        desc: `Only ${p.quantity} units left, below the critical level of ${t.criticalStock}.`,
-      })
-    } else if (p.quantity <= p.reorderPoint) {
-      list.push({
-        sev: 'Warning', icon: 'down',
-        title: `Low stock: ${p.name}`,
-        desc: `${p.quantity} units left against a reorder point of ${p.reorderPoint}.`,
-      })
-    } else if (p.quantity >= t.overstockLimit) {
-      list.push({
-        sev: 'Info', icon: 'box',
-        title: `Overstocked: ${p.name}`,
-        desc: `${p.quantity} units held, over the overstock limit of ${t.overstockLimit}.`,
-      })
-    }
-  }
-
-  const pending = orders.filter((o) => o.status === 'Pending')
-  if (pending.length) {
-    const oldest = pending[pending.length - 1]
-    list.push({
-      sev: 'Warning', icon: 'clock',
-      title: `${pending.length} order${pending.length > 1 ? 's' : ''} pending`,
-      desc: `Oldest is ${oldest.id} from ${fmtDate(oldest.date)}.`,
-    })
-  }
-
-  list.push({
-    sev: 'Info', icon: 'check',
-    title: 'Store online',
-    desc: `${STORE.name} is syncing inventory normally.`,
-  })
-
-  const rank = { Critical: 0, Warning: 1, Info: 2 }
-  return list.sort((a, b) => rank[a.sev] - rank[b.sev])
 }
 
 /* -------------------------------- Reports ------------------------------- */

@@ -1,5 +1,6 @@
 """API views (spec section 4)."""
 from django.db import transaction
+from django.db.models import Case, IntegerField, Value, When
 from django.utils import timezone
 from rest_framework import mixins, viewsets
 from rest_framework.decorators import action
@@ -8,8 +9,17 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .models import Customer, Invoice, Order, Product, PurchaseOrder, StockBatch, Supplier
-from .permissions import IsOwner, is_owner
+from .models import (
+    Customer,
+    Invoice,
+    Order,
+    Product,
+    PurchaseOrder,
+    StockBatch,
+    Supplier,
+    User,
+)
+from .permissions import CanManageStaff, IsOwner, is_owner
 from .serializers import (
     CustomerSerializer,
     InvoiceSerializer,
@@ -18,6 +28,8 @@ from .serializers import (
     OrderStatusSerializer,
     ProductSerializer,
     PurchaseOrderSerializer,
+    StaffPasswordSerializer,
+    StaffSerializer,
     StockBatchSerializer,
     SupplierSerializer,
 )
@@ -28,6 +40,86 @@ STATUS_SEVERITY = [StockBatch.STATUS_EXPIRED, StockBatch.STATUS_AGEING, StockBat
 
 class LoginView(TokenObtainPairView):
     serializer_class = LoginSerializer
+
+
+class StaffViewSet(
+    mixins.ListModelMixin,
+    mixins.CreateModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    viewsets.GenericViewSet,
+):
+    """Who can sign in, and as what. Owner-only, top to bottom.
+
+    Deliberately no `destroy`: a staff member's name is attached to the orders
+    and invoices they handled, so leavers are switched off (`is_active`), never
+    removed. DELETE therefore answers 405 rather than 404 — the absence is the
+    design, not an oversight.
+    """
+
+    serializer_class = StaffSerializer
+    permission_classes = [CanManageStaff]
+    # Owners first, then alphabetically — the shape the Staff table renders in.
+    queryset = User.objects.annotate(
+        role_rank=Case(
+            When(role=User.Role.OWNER, then=Value(0)),
+            default=Value(1),
+            output_field=IntegerField(),
+        )
+    ).order_by("role_rank", "first_name", "username")
+
+    def perform_update(self, serializer):
+        """Guard the two edits that can lock the store out of its own admin."""
+        staff = serializer.instance
+        actor = self.request.user
+        active = serializer.validated_data.get("is_active", staff.is_active)
+        role = serializer.validated_data.get("role", staff.role)
+
+        if staff.pk == actor.pk and (not active or role != User.Role.OWNER):
+            raise ValidationError(
+                {
+                    "detail": (
+                        "You cannot disable your own account or drop your own owner "
+                        "role — you would lose this page along with it. Another owner "
+                        "can do it for you."
+                    )
+                }
+            )
+
+        # Demoting or disabling the last owner leaves nobody able to manage
+        # staff, add owners, or see the financial pages.
+        loses_owner = staff.role == User.Role.OWNER and (
+            role != User.Role.OWNER or not active
+        )
+        if loses_owner and not self._other_active_owners(staff).exists():
+            raise ValidationError(
+                {
+                    "detail": (
+                        f"'{staff.get_full_name() or staff.username}' is the only "
+                        "active owner. Make someone else an owner first."
+                    )
+                }
+            )
+
+        serializer.save()
+
+    @staticmethod
+    def _other_active_owners(staff):
+        return User.objects.filter(role=User.Role.OWNER, is_active=True).exclude(pk=staff.pk)
+
+    @action(detail=True, methods=["post"], url_path="set-password")
+    def set_password(self, request, pk=None):
+        """Someone forgot theirs; the owner sets a new one.
+
+        Passwords are hashed and unreadable, so there is nothing to recover —
+        replacing it is the only move available.
+        """
+        staff = self.get_object()
+        serializer = StaffPasswordSerializer(data=request.data, context={"staff": staff})
+        serializer.is_valid(raise_exception=True)
+        staff.set_password(serializer.validated_data["password"])
+        staff.save(update_fields=["password"])
+        return Response(self.get_serializer(staff).data)
 
 
 class ProductViewSet(
@@ -159,10 +251,36 @@ class PurchaseOrderViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class CustomerViewSet(
-    mixins.ListModelMixin, mixins.CreateModelMixin, viewsets.GenericViewSet
+    mixins.ListModelMixin,
+    mixins.CreateModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
 ):
+    """Maintained from the order form, where a new buyer first turns up."""
+
     queryset = Customer.objects.all()
     serializer_class = CustomerSerializer
+
+    def get_permissions(self):
+        # Same split as products and suppliers: staff add to the list while
+        # taking an order, only the owner removes from it.
+        if self.action == "destroy":
+            return [IsOwner()]
+        return super().get_permissions()
+
+    def perform_destroy(self, customer):
+        """Order.customer is PROTECT — without this check it would be a 500."""
+        count = customer.orders.count()
+        if count:
+            raise ValidationError(
+                {
+                    "detail": (
+                        f"'{customer.name}' is named on {count} order(s) and cannot "
+                        "be deleted. Their trading history depends on it."
+                    )
+                }
+            )
+        customer.delete()
 
 
 class OrderViewSet(

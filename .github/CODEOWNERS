@@ -1,0 +1,8 @@
+# Every change to this repo requires review from @TanmayKamble004
+# before it can be merged into main.
+#
+# Enforced by the "Require review from Code Owners" rule in the
+# branch ruleset on main. This file must live on the default branch
+# for GitHub to honor it.
+
+* @TanmayKamble004

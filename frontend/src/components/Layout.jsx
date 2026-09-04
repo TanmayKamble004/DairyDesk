@@ -15,13 +15,15 @@ const ICONS = {
   orders: 'M6 2h9l5 5v15H6V2zm8 1.5V8h4.5L14 3.5zM8 12h8v1.5H8V12zm0 4h8v1.5H8V16z',
   suppliers: 'M3 6h11v9H3V6zm12 3h3.5L21 12v3h-6V9zM6.5 20a1.8 1.8 0 1 0 0-3.6 1.8 1.8 0 0 0 0 3.6zm11 0a1.8 1.8 0 1 0 0-3.6 1.8 1.8 0 0 0 0 3.6z',
   reports: 'M6 2h9l5 5v15H6V2zm8 1.5V8h4.5L14 3.5zM8 13h2v5H8v-5zm3.5-3h2v8h-2v-8zM15 15h2v3h-2v-3z',
-  alerts: 'M12 2 1 21h22L12 2zm0 4.6L19.5 19h-15L12 6.6zM11 10h2v5h-2v-5zm0 6h2v2h-2v-2z',
   inventory: 'M4 4h16v4H4V4zm0 6h16v10H4V10zm5 3h6v1.6H9V13z',
   invoices: 'M5 2h14v20l-3-2-2 2-2-2-2 2-2-2-3 2V2zm3 5h8v1.6H8V7zm0 4h8v1.6H8V11zm0 4h5v1.6H8V15z',
+  staff: 'M12 12.2a4.6 4.6 0 1 0 0-9.2 4.6 4.6 0 0 0 0 9.2zM3.5 21v-1.4c0-2.9 3.8-5.2 8.5-5.2s8.5 2.3 8.5 5.2V21h-17z',
 }
 
 // Order mirrors the standalone store build; Inventory and Invoices are kept
 // because they are this app's live batch/expiry pages and drop nothing.
+// Alerts is deliberately absent: it is reached from the Dashboard, next to the
+// KPIs that raise the same concerns.
 const PAGES = [
   { to: '/', label: 'Dashboard', icon: 'dashboard', end: true },
   { to: '/products', label: 'Products', icon: 'products' },
@@ -30,9 +32,14 @@ const PAGES = [
   { to: '/orders', label: 'Orders', icon: 'orders' },
   { to: '/suppliers', label: 'Suppliers', icon: 'suppliers' },
   { to: '/reports', label: 'Reports', icon: 'reports', ownerOnly: true },
-  { to: '/alerts', label: 'Alerts', icon: 'alerts' },
   { to: '/invoices', label: 'Invoices', icon: 'invoices', ownerOnly: true },
 ]
+
+// Its own group rather than a ninth page: managing who can sign in is not
+// store work, and the heading is what tells a staff member's screen apart from
+// an owner's. Rendered inside the scrolling nav, so it sits against Invoices at
+// the top of the gap instead of drifting down onto the status card.
+const OWNER_PAGES = [{ to: '/staff', label: 'Staff', icon: 'staff' }]
 
 function Icon({ path }) {
   return (
@@ -60,7 +67,17 @@ export default function Layout() {
     navigate('/login')
   }
 
-  const pages = PAGES.filter((p) => !p.ownerOnly || user?.role === 'owner')
+  const isOwner = user?.role === 'owner'
+  const pages = PAGES.filter((p) => !p.ownerOnly || isOwner)
+
+  const navLink = (p) => (
+    <li key={p.to}>
+      <NavLink to={p.to} end={p.end} className={linkClass} onClick={() => setOpen(false)}>
+        <Icon path={ICONS[p.icon]} />
+        {p.label}
+      </NavLink>
+    </li>
+  )
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -101,16 +118,16 @@ export default function Layout() {
           <div className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-wider text-rail-muted">
             Pages
           </div>
-          <ul className="space-y-1">
-            {pages.map((p) => (
-              <li key={p.to}>
-                <NavLink to={p.to} end={p.end} className={linkClass} onClick={() => setOpen(false)}>
-                  <Icon path={ICONS[p.icon]} />
-                  {p.label}
-                </NavLink>
-              </li>
-            ))}
-          </ul>
+          <ul className="space-y-1">{pages.map(navLink)}</ul>
+
+          {isOwner && (
+            <div className="mt-4 border-t border-white/10 pt-4">
+              <div className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-wider text-rail-muted">
+                Owner
+              </div>
+              <ul className="space-y-1">{OWNER_PAGES.map(navLink)}</ul>
+            </div>
+          )}
         </nav>
 
         <div className="m-3 rounded-xl bg-rail-soft p-3.5 text-xs">
