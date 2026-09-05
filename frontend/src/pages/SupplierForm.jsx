@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api, apiErrorMessage } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
@@ -108,7 +108,7 @@ function DeleteSupplier({ name, busy, onDelete }) {
         type="button"
         onClick={() => setConfirming(true)}
         disabled={busy}
-        className="rounded-lg border border-expired/40 bg-expired-soft px-4 py-2 text-sm font-medium text-expired-ink hover:bg-expired-soft/70 disabled:cursor-not-allowed disabled:opacity-50 sm:ml-auto"
+        className="rounded-xl border border-expired/40 bg-expired-soft px-4 py-2 text-sm font-medium text-expired-ink hover:bg-expired-soft/70 disabled:cursor-not-allowed disabled:opacity-50 sm:ml-auto"
       >
         Delete supplier
       </button>
@@ -122,7 +122,7 @@ function DeleteSupplier({ name, busy, onDelete }) {
         type="button"
         onClick={onDelete}
         disabled={busy}
-        className="rounded-lg bg-expired px-4 py-2 text-sm font-medium text-white hover:bg-expired/90 disabled:cursor-not-allowed disabled:opacity-50"
+        className="rounded-xl bg-expired px-4 py-2 text-sm font-medium text-white hover:bg-expired/90 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {busy ? 'Deleting…' : 'Yes, delete'}
       </button>
@@ -138,9 +138,24 @@ function DeleteSupplier({ name, busy, onDelete }) {
   )
 }
 
-export default function SupplierForm() {
-  const navigate = useNavigate()
-  const { id } = useParams()
+/**
+ * The supplier form itself, with no opinion about where it is rendered. The
+ * route below wraps it for the full page; the Suppliers list wraps it in a
+ * dialog and passes `formId` so a submit button pinned outside the form can
+ * still drive it. Fields, validation and both handlers are the same either
+ * way — only the chrome around them differs.
+ */
+export function SupplierFormBody({
+  supplierId,
+  formId,
+  layout = 'page',
+  onSaved,
+  onDeleted,
+  onCancel,
+  onBusyChange,
+  onDirtyChange,
+}) {
+  const id = supplierId
   const { user } = useAuth()
   const toast = useToast()
   const isEdit = Boolean(id)
@@ -150,6 +165,10 @@ export default function SupplierForm() {
   const [fieldErrors, setFieldErrors] = useState({})
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  // What the form looked like when it was last (re)initialised — EMPTY for a
+  // new supplier, the fetched values for an existing one. Everything "unsaved
+  // changes" means is measured against this.
+  const baseline = useRef(EMPTY)
 
   useEffect(() => {
     if (!isEdit) return
@@ -157,7 +176,7 @@ export default function SupplierForm() {
       .get(`/suppliers/${id}/`)
       .then((res) => {
         const s = res.data
-        setForm({
+        const loadedForm = {
           name: s.name,
           contact_person: s.contact_person,
           phone: s.phone,
@@ -165,7 +184,9 @@ export default function SupplierForm() {
           products_supplied: String(s.products_supplied),
           last_order_date: s.last_order_date,
           rating: s.rating,
-        })
+        }
+        setForm(loadedForm)
+        baseline.current = loadedForm
         setLoaded(true)
       })
       .catch((err) => {
@@ -176,6 +197,21 @@ export default function SupplierForm() {
     // re-run the fetch on unrelated renders.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, isEdit])
+
+  // The dialog's footer sits outside this component but has to grey out while
+  // a save is in flight, so the flag is published rather than kept private.
+  useEffect(() => {
+    onBusyChange?.(saving || deleting)
+  }, [saving, deleting, onBusyChange])
+
+  // Likewise for "has anything been typed" — the dialog needs it to decide
+  // whether a stray click on the overlay should ask before throwing the form
+  // away. A form opened and left alone is not dirty and closes silently.
+  useEffect(() => {
+    onDirtyChange?.(
+      Object.keys(form).some((field) => form[field] !== baseline.current[field]),
+    )
+  }, [form, onDirtyChange])
 
   function set(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }))
@@ -221,7 +257,7 @@ export default function SupplierForm() {
       // PUT, not PATCH: every field is on screen, so this is a full replacement.
       await (isEdit ? api.put(`/suppliers/${id}/`, payload) : api.post('/suppliers/', payload))
       toast.success(isEdit ? `“${form.name}” updated.` : `“${form.name}” added as a supplier.`)
-      navigate('/suppliers')
+      onSaved?.()
     } catch (err) {
       // Land server-side complaints on the field itself, not only in the toast.
       const data = err.response?.data
@@ -244,7 +280,7 @@ export default function SupplierForm() {
     try {
       await api.delete(`/suppliers/${id}/`)
       toast.success(`“${deleted}” deleted.`)
-      navigate('/suppliers')
+      onDeleted?.()
     } catch (err) {
       // Refusals are expected here — a supplier with products is kept.
       toast.error(apiErrorMessage(err))
@@ -254,22 +290,12 @@ export default function SupplierForm() {
 
   const describedBy = (field) => (fieldErrors[field] ? `${field}-error` : undefined)
 
-  return (
-    // noValidate: the browser's own bubbles show one field at a time and vanish
-    // on the next click, so the form reports every problem at once instead.
-    <form ref={formRef} onSubmit={handleSubmit} noValidate>
-      <PageHeader title={isEdit ? 'Edit supplier' : 'New supplier'}>
-        <p className="w-full text-sm text-muted">
-          {isEdit
-            ? 'Change any field and save. Every field is required.'
-            : 'Add a vendor this store buys stock from. Every field is required.'}
-        </p>
-      </PageHeader>
+  const inModal = layout === 'modal'
 
-      {!loaded && <Spinner label="Loading supplier…" />}
-
-      <Card className={`max-w-3xl p-5 ${loaded ? '' : 'hidden'}`}>
-        <div className="grid gap-5 sm:grid-cols-2">
+  // A 520px dialog is narrower than the `sm` breakpoint the two-column grid
+  // would be matching against, so the pairs only apply on the full page.
+  const fields = (
+    <div className={inModal ? 'grid gap-5' : 'grid gap-5 sm:grid-cols-2'}>
           <Field name="name" label="Supplier name" error={fieldErrors.name}>
             <input
               id="name"
@@ -391,30 +417,73 @@ export default function SupplierForm() {
               aria-describedby={describedBy('rating')}
             />
           </Field>
-        </div>
+    </div>
+  )
 
-        <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-line pt-5">
-          <button type="submit" disabled={saving || deleting} className={buttonPrimary}>
-            {saving ? 'Saving…' : isEdit ? 'Update supplier' : 'Create supplier'}
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/suppliers')}
-            disabled={saving || deleting}
-            className={buttonSecondary}
-          >
-            Cancel
-          </button>
-          {/* Owner-only, matching products and this app's other destructive surfaces. */}
-          {isEdit && user?.role === 'owner' && (
-            <DeleteSupplier
-              name={form.name}
-              busy={saving || deleting}
-              onDelete={handleDelete}
-            />
-          )}
-        </div>
-      </Card>
+  return (
+    // noValidate: the browser's own bubbles show one field at a time and vanish
+    // on the next click, so the form reports every problem at once instead.
+    <form id={formId} ref={formRef} onSubmit={handleSubmit} noValidate>
+      {!inModal && (
+        <PageHeader title={isEdit ? 'Edit supplier' : 'New supplier'}>
+          <p className="w-full text-sm text-muted">
+            {isEdit
+              ? 'Change any field and save. Every field is required.'
+              : 'Add a vendor this store buys stock from. Every field is required.'}
+          </p>
+        </PageHeader>
+      )}
+
+      {!loaded && <Spinner label="Loading supplier…" />}
+
+      {/* In a dialog the glass panel is already the surface, so the card goes
+          and the two actions below move to its pinned footer. */}
+      {inModal ? (
+        <div className={loaded ? '' : 'hidden'}>{fields}</div>
+      ) : (
+        <Card className={`max-w-3xl p-5 ${loaded ? '' : 'hidden'}`}>
+          {fields}
+
+          <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-line pt-5">
+            <button type="submit" disabled={saving || deleting} className={buttonPrimary}>
+              {saving ? 'Saving…' : isEdit ? 'Update supplier' : 'Create supplier'}
+            </button>
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={saving || deleting}
+              className={buttonSecondary}
+            >
+              Cancel
+            </button>
+            {/* Owner-only, matching products and this app's other destructive surfaces. */}
+            {isEdit && user?.role === 'owner' && (
+              <DeleteSupplier
+                name={form.name}
+                busy={saving || deleting}
+                onDelete={handleDelete}
+              />
+            )}
+          </div>
+        </Card>
+      )}
     </form>
+  )
+}
+
+/** The full-page route: create at /suppliers/new, edit at /suppliers/:id/edit. */
+export default function SupplierForm() {
+  const navigate = useNavigate()
+  const { id } = useParams()
+  const backToList = useCallback(() => navigate('/suppliers'), [navigate])
+
+  return (
+    <SupplierFormBody
+      supplierId={id}
+      layout="page"
+      onSaved={backToList}
+      onDeleted={backToList}
+      onCancel={backToList}
+    />
   )
 }

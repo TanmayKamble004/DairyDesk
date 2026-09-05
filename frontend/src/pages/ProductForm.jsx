@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api, apiErrorMessage } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
@@ -210,6 +210,22 @@ function CategoryField({
   )
 }
 
+/**
+ * One group of fields. On the page each group is its own card; in a dialog the
+ * glass panel is already the surface, so they become plain bands separated by
+ * a hairline instead of cards stacked inside a card.
+ */
+function FormSection({ inModal, className = '', children }) {
+  if (inModal) {
+    return (
+      <section className="border-t border-modal-divider pt-5 first:border-t-0 first:pt-0">
+        {children}
+      </section>
+    )
+  }
+  return <Card className={className}>{children}</Card>
+}
+
 function Field({ name, label, hint, error, children }) {
   return (
     <div>
@@ -227,26 +243,34 @@ function Field({ name, label, hint, error, children }) {
  * Image picker. The file never leaves the browser until the form is submitted,
  * so "Remove" is a local reset — nothing to undo server-side.
  */
-function ImagePicker({ previewUrl, caption, onPick, onClear, disabled }) {
+function ImagePicker({ previewUrl, caption, onPick, onClear, disabled, compact = false }) {
   const inputRef = useRef(null)
+  // Beside the fields a square well is the right shape. Stacked under them in
+  // a dialog it would be a screen of empty box between the last field and the
+  // Create button, so there it becomes a band.
+  const well = compact ? 'h-40 w-full' : 'aspect-square w-full'
 
   return (
     <div>
       <span className={labelClass}>Product image</span>
 
-      <div className="overflow-hidden rounded-xl border border-dashed border-line bg-surface-muted">
+      <div
+        className={`overflow-hidden rounded-xl border border-dashed border-line ${
+          compact ? 'bg-white/45' : 'bg-surface-muted'
+        }`}
+      >
         {previewUrl ? (
           <img
             src={previewUrl}
             alt="Selected product"
-            className="aspect-square w-full bg-surface object-contain"
+            className={`${well} bg-surface object-contain`}
           />
         ) : (
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={disabled}
-            className="flex aspect-square w-full flex-col items-center justify-center gap-2 px-4 text-center transition-colors hover:bg-neutral-soft disabled:cursor-not-allowed"
+            className={`${well} flex flex-col items-center justify-center gap-2 px-4 text-center transition-colors hover:bg-neutral-soft disabled:cursor-not-allowed`}
           >
             <span className="text-3xl text-empty" aria-hidden="true">
               ⬆
@@ -283,7 +307,7 @@ function ImagePicker({ previewUrl, caption, onPick, onClear, disabled }) {
             type="button"
             onClick={onClear}
             disabled={disabled}
-            className="rounded-lg border border-expired/40 bg-expired-soft px-4 py-2 text-xs font-medium text-expired-ink hover:bg-expired-soft/70 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-xl border border-expired/40 bg-expired-soft px-4 py-2 text-xs font-medium text-expired-ink hover:bg-expired-soft/70 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Cancel image
           </button>
@@ -333,7 +357,7 @@ function DeleteProduct({ name, busy, onDelete }) {
         type="button"
         onClick={() => setConfirming(true)}
         disabled={busy}
-        className="rounded-lg border border-expired/40 bg-expired-soft px-4 py-2 text-sm font-medium text-expired-ink hover:bg-expired-soft/70 disabled:cursor-not-allowed disabled:opacity-50 sm:ml-auto"
+        className="rounded-xl border border-expired/40 bg-expired-soft px-4 py-2 text-sm font-medium text-expired-ink hover:bg-expired-soft/70 disabled:cursor-not-allowed disabled:opacity-50 sm:ml-auto"
       >
         Delete product
       </button>
@@ -347,7 +371,7 @@ function DeleteProduct({ name, busy, onDelete }) {
         type="button"
         onClick={onDelete}
         disabled={busy}
-        className="rounded-lg bg-expired px-4 py-2 text-sm font-medium text-white hover:bg-expired/90 disabled:cursor-not-allowed disabled:opacity-50"
+        className="rounded-xl bg-expired px-4 py-2 text-sm font-medium text-white hover:bg-expired/90 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {busy ? 'Deleting…' : 'Yes, delete'}
       </button>
@@ -363,9 +387,24 @@ function DeleteProduct({ name, busy, onDelete }) {
   )
 }
 
-export default function ProductForm() {
-  const navigate = useNavigate()
-  const { id } = useParams()
+/**
+ * The product form itself, with no opinion about where it is rendered. The
+ * route below wraps it for the full page; a list page wraps it in a dialog and
+ * passes `formId` so a submit button pinned outside the form can still drive
+ * it. Fields, validation and both handlers are the same in either case — only
+ * the chrome around them differs.
+ */
+export function ProductFormBody({
+  productId,
+  formId,
+  layout = 'page',
+  onSaved,
+  onDeleted,
+  onCancel,
+  onBusyChange,
+  onDirtyChange,
+}) {
+  const id = productId
   const { user } = useAuth()
   const toast = useToast()
   const isEdit = Boolean(id)
@@ -384,6 +423,10 @@ export default function ProductForm() {
   const [fieldErrors, setFieldErrors] = useState({})
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  // What the form looked like when it was last (re)initialised — EMPTY for a
+  // new product, the fetched values for an existing one. Everything "unsaved
+  // changes" means is measured against this.
+  const baseline = useRef({ form: EMPTY, storedImage: '' })
 
   useEffect(() => {
     api
@@ -410,7 +453,7 @@ export default function ProductForm() {
       .get(`/products/${id}/`)
       .then((res) => {
         const p = res.data
-        setForm({
+        const loadedForm = {
           name: p.name,
           sku: p.sku,
           category: p.category,
@@ -423,10 +466,12 @@ export default function ProductForm() {
           reorder_threshold: String(p.reorder_threshold),
           description: p.description,
           auto_reorder: p.auto_reorder,
-        })
+        }
+        setForm(loadedForm)
         setStoredImage(p.image ?? '')
         setOpenOrder(p.open_purchase_order)
         setLoaded(true)
+        baseline.current = { form: loadedForm, storedImage: p.image ?? '' }
       })
       .catch((err) => {
         toast.error(`Could not load this product. ${apiErrorMessage(err)}`)
@@ -436,6 +481,23 @@ export default function ProductForm() {
     // re-run the fetch on unrelated renders.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, isEdit])
+
+  // The dialog's footer sits outside this component but has to grey out while
+  // a save is in flight, so the flag is published rather than kept private.
+  useEffect(() => {
+    onBusyChange?.(saving || deleting)
+  }, [saving, deleting, onBusyChange])
+
+  // Likewise for "has anything been typed" — the dialog needs it to decide
+  // whether a stray click on the overlay should ask before throwing the form
+  // away. A form opened and left alone is not dirty and closes silently.
+  useEffect(() => {
+    const changed =
+      Object.keys(form).some((field) => form[field] !== baseline.current.form[field]) ||
+      Boolean(image) ||
+      storedImage !== baseline.current.storedImage
+    onDirtyChange?.(changed)
+  }, [form, image, storedImage, onDirtyChange])
 
   // Object URLs are revoked on replace/unmount, or the blobs leak for the
   // lifetime of the tab.
@@ -528,7 +590,7 @@ export default function ProductForm() {
             `from ${raised.supplier_name}.`,
         )
       }
-      navigate('/products')
+      onSaved?.(res.data)
     } catch (err) {
       // Land server-side complaints (a duplicate SKU, say) on the field itself
       // rather than only in the toast.
@@ -552,7 +614,7 @@ export default function ProductForm() {
     try {
       await api.delete(`/products/${id}/`)
       toast.success(`“${deleted}” deleted.`)
-      navigate('/products')
+      onDeleted?.()
     } catch (err) {
       // Refusals are expected here — an ordered or stocked product is kept.
       toast.error(apiErrorMessage(err))
@@ -560,299 +622,350 @@ export default function ProductForm() {
     }
   }
 
+  const inModal = layout === 'modal'
+  // A 520px dialog is narrower than the `sm` breakpoint it would be matching
+  // against, so the two-column field grid — and the cells that span it — only
+  // apply on the full page.
+  const fieldGrid = inModal ? 'grid gap-5' : 'grid gap-5 sm:grid-cols-2'
+  const span2 = inModal ? '' : 'sm:col-span-2'
+
+  const imageSection = (
+    <FormSection inModal={inModal} className="h-fit p-5">
+      <ImagePicker
+        compact={inModal}
+        previewUrl={previewUrl}
+        caption={image ? image.name : ''}
+        onPick={pickImage}
+        onClear={() => {
+          setImage(null)
+          setStoredImage('')
+        }}
+        disabled={saving || deleting}
+      />
+    </FormSection>
+  )
+
+  const detailsSection = (
+    <FormSection inModal={inModal} className="p-5">
+      <div className={fieldGrid}>
+        <div className={span2}>
+          <Field name="name" label="Product name" error={fieldErrors.name}>
+            <input
+              id="name"
+              name="name"
+              className={fieldClass(fieldErrors.name)}
+              value={form.name}
+              onChange={(e) => set('name', e.target.value)}
+              placeholder="Amul Gold Milk 1L"
+              maxLength={100}
+              aria-invalid={Boolean(fieldErrors.name)}
+              aria-describedby={fieldErrors.name ? 'name-error' : undefined}
+            />
+          </Field>
+        </div>
+
+        <Field
+          name="sku"
+          label="SKU"
+          hint="Unique across the catalogue."
+          error={fieldErrors.sku}
+        >
+          <input
+            id="sku"
+            name="sku"
+            className={fieldClass(fieldErrors.sku)}
+            value={form.sku}
+            onChange={(e) => set('sku', e.target.value)}
+            placeholder="DRY-1001"
+            maxLength={32}
+            aria-invalid={Boolean(fieldErrors.sku)}
+            aria-describedby={fieldErrors.sku ? 'sku-error' : undefined}
+          />
+        </Field>
+
+        <CategoryField
+          value={form.category}
+          options={categories}
+          adding={addingCategory}
+          error={fieldErrors.category}
+          onChange={(value) => set('category', value)}
+          onStartAdding={() => {
+            set('category', '')
+            setAddingCategory(true)
+          }}
+          onStopAdding={() => {
+            set('category', '')
+            setAddingCategory(false)
+          }}
+        />
+
+        <Field name="unit" label="Unit" error={fieldErrors.unit}>
+          <select
+            id="unit"
+            name="unit"
+            className={fieldClass(fieldErrors.unit)}
+            value={form.unit}
+            onChange={(e) => set('unit', e.target.value)}
+          >
+            {UNITS.map((u) => (
+              <option key={u.value} value={u.value}>
+                {u.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field
+          name="selling_price"
+          label="Selling price (₹)"
+          error={fieldErrors.selling_price}
+        >
+          <input
+            id="selling_price"
+            name="selling_price"
+            type="number"
+            min="0"
+            step="0.01"
+            className={fieldClass(fieldErrors.selling_price)}
+            value={form.selling_price}
+            onChange={(e) => set('selling_price', e.target.value)}
+            placeholder="68.00"
+            aria-invalid={Boolean(fieldErrors.selling_price)}
+            aria-describedby={fieldErrors.selling_price ? 'selling_price-error' : undefined}
+          />
+        </Field>
+
+        <div className={span2}>
+          <Field
+            name="description"
+            label="Description"
+            hint="Optional."
+            error={fieldErrors.description}
+          >
+            <textarea
+              id="description"
+              name="description"
+              rows={3}
+              className={fieldClass(fieldErrors.description)}
+              value={form.description}
+              onChange={(e) => set('description', e.target.value)}
+              placeholder="Anything staff should know when handling this product."
+              aria-invalid={Boolean(fieldErrors.description)}
+              aria-describedby={fieldErrors.description ? 'description-error' : undefined}
+            />
+          </Field>
+        </div>
+      </div>
+    </FormSection>
+  )
+
+  // Reordering lives in its own box: these three fields are what the
+  // auto-reorder toggle acts on, and grouping them makes that legible.
+  const reorderSection = (
+    <FormSection inModal={inModal} className="p-5 lg:col-start-2">
+      <div
+        className={`mb-4 flex flex-wrap items-center justify-between gap-3 pb-4 ${
+          inModal ? '' : 'border-b border-line'
+        }`}
+      >
+        <div>
+          <h2 className="text-base font-semibold text-ink">Reordering</h2>
+          <p className="text-sm text-muted">
+            Who this SKU is bought from, and when to buy more.
+          </p>
+        </div>
+        <Toggle
+          id="auto_reorder"
+          label="Auto submit"
+          checked={form.auto_reorder}
+          disabled={saving || deleting}
+          onChange={(checked) => set('auto_reorder', checked)}
+        />
+      </div>
+
+      <div className={fieldGrid}>
+        <div className={span2}>
+          <Field
+            name="supplier"
+            label="Supplier"
+            hint={
+              suppliers.length
+                ? 'The vendor this SKU is bought from.'
+                : 'No suppliers yet — add one on the Suppliers page first.'
+            }
+            error={fieldErrors.supplier}
+          >
+            <select
+              id="supplier"
+              name="supplier"
+              className={fieldClass(fieldErrors.supplier)}
+              value={form.supplier}
+              onChange={(e) => set('supplier', e.target.value)}
+              aria-invalid={Boolean(fieldErrors.supplier)}
+              aria-describedby={fieldErrors.supplier ? 'supplier-error' : undefined}
+            >
+              <option value="" disabled>
+                Select a supplier…
+              </option>
+              {suppliers.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} — {s.contact_person}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+
+        <Field
+          name="reorder_threshold"
+          label="Reorder threshold"
+          hint="Stock at or below this shows as Low Stock."
+          error={fieldErrors.reorder_threshold}
+        >
+          <input
+            id="reorder_threshold"
+            name="reorder_threshold"
+            type="number"
+            min="0"
+            step="1"
+            className={fieldClass(fieldErrors.reorder_threshold)}
+            value={form.reorder_threshold}
+            onChange={(e) => set('reorder_threshold', e.target.value)}
+            placeholder="40"
+            aria-invalid={Boolean(fieldErrors.reorder_threshold)}
+            aria-describedby={
+              fieldErrors.reorder_threshold ? 'reorder_threshold-error' : undefined
+            }
+          />
+        </Field>
+
+        <Field
+          name="reorder_quantity"
+          label="Reorder quantity"
+          hint="Units to buy when it runs low."
+          error={fieldErrors.reorder_quantity}
+        >
+          <input
+            id="reorder_quantity"
+            name="reorder_quantity"
+            type="number"
+            min="0"
+            step="1"
+            className={fieldClass(fieldErrors.reorder_quantity)}
+            value={form.reorder_quantity}
+            onChange={(e) => set('reorder_quantity', e.target.value)}
+            placeholder="100"
+            aria-invalid={Boolean(fieldErrors.reorder_quantity)}
+            aria-describedby={
+              fieldErrors.reorder_quantity ? 'reorder_quantity-error' : undefined
+            }
+          />
+        </Field>
+      </div>
+
+      <div
+        className={`mt-4 rounded-xl px-4 py-3 text-sm ${
+          inModal ? 'bg-white/45' : 'bg-surface-muted'
+        }`}
+      >
+        {openOrder ? (
+          <p className="text-ink">
+            <span className="font-semibold">Purchase order #{openOrder.id}</span> is open —{' '}
+            {openOrder.quantity} units from {openOrder.supplier_name}, raised{' '}
+            {fmtDateTime(openOrder.created_at)}. It closes when you receive stock for this
+            product.
+          </p>
+        ) : form.auto_reorder ? (
+          <p className="text-ink">
+            Stock at or below{' '}
+            <span className="font-semibold">{form.reorder_threshold || 0}</span> raises a
+            purchase order for{' '}
+            <span className="font-semibold">{form.reorder_quantity || 0}</span> units,
+            automatically.
+          </p>
+        ) : (
+          <p className="text-muted">
+            Auto submit is off — hitting the threshold only flags the product as Low Stock.
+            Turn it on to have the order raised for you.
+          </p>
+        )}
+      </div>
+    </FormSection>
+  )
+
   return (
     // noValidate: the browser's own bubbles show one field at a time and vanish
     // on the next click, so the form reports every problem at once instead.
-    <form ref={formRef} onSubmit={handleSubmit} noValidate>
-      <PageHeader title={isEdit ? 'Edit product' : 'New product'}>
-        <p className="w-full text-sm text-muted">
-          {isEdit
-            ? 'Change any field and save. Image and description are optional.'
-            : 'Add a SKU to the catalogue. Image and description are optional.'}
-        </p>
-      </PageHeader>
+    <form id={formId} ref={formRef} onSubmit={handleSubmit} noValidate>
+      {!inModal && (
+        <PageHeader title={isEdit ? 'Edit product' : 'New product'}>
+          <p className="w-full text-sm text-muted">
+            {isEdit
+              ? 'Change any field and save. Image and description are optional.'
+              : 'Add a SKU to the catalogue. Image and description are optional.'}
+          </p>
+        </PageHeader>
+      )}
 
       {!loaded && <Spinner label="Loading product…" />}
 
       <div
-        className={`grid gap-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] ${
-          loaded ? '' : 'hidden'
+        className={`${loaded ? '' : 'hidden'} ${
+          inModal ? 'grid gap-5' : 'grid gap-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]'
         }`}
       >
-        <Card className="h-fit p-5">
-          <ImagePicker
-            previewUrl={previewUrl}
-            caption={image ? image.name : ''}
-            onPick={pickImage}
-            onClear={() => {
-              setImage(null)
-              setStoredImage('')
-            }}
-            disabled={saving || deleting}
-          />
-        </Card>
+        {/* On the page the photo leads, beside the fields. In a single column
+            it would be a large empty square above the first thing to type, so
+            there it goes last. */}
+        {!inModal && imageSection}
+        {detailsSection}
+        {reorderSection}
+        {inModal && imageSection}
 
-        <Card className="p-5">
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <Field name="name" label="Product name" error={fieldErrors.name}>
-                <input
-                  id="name"
-                  name="name"
-                  className={fieldClass(fieldErrors.name)}
-                  value={form.name}
-                  onChange={(e) => set('name', e.target.value)}
-                  placeholder="Amul Gold Milk 1L"
-                  maxLength={100}
-                  aria-invalid={Boolean(fieldErrors.name)}
-                  aria-describedby={fieldErrors.name ? 'name-error' : undefined}
-                />
-              </Field>
-            </div>
-
-            <Field
-              name="sku"
-              label="SKU"
-              hint="Unique across the catalogue."
-              error={fieldErrors.sku}
-            >
-              <input
-                id="sku"
-                name="sku"
-                className={fieldClass(fieldErrors.sku)}
-                value={form.sku}
-                onChange={(e) => set('sku', e.target.value)}
-                placeholder="DRY-1001"
-                maxLength={32}
-                aria-invalid={Boolean(fieldErrors.sku)}
-                aria-describedby={fieldErrors.sku ? 'sku-error' : undefined}
-              />
-            </Field>
-
-            <CategoryField
-              value={form.category}
-              options={categories}
-              adding={addingCategory}
-              error={fieldErrors.category}
-              onChange={(value) => set('category', value)}
-              onStartAdding={() => {
-                set('category', '')
-                setAddingCategory(true)
-              }}
-              onStopAdding={() => {
-                set('category', '')
-                setAddingCategory(false)
-              }}
-            />
-
-            <Field name="unit" label="Unit" error={fieldErrors.unit}>
-              <select
-                id="unit"
-                name="unit"
-                className={fieldClass(fieldErrors.unit)}
-                value={form.unit}
-                onChange={(e) => set('unit', e.target.value)}
-              >
-                {UNITS.map((u) => (
-                  <option key={u.value} value={u.value}>
-                    {u.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <Field
-              name="selling_price"
-              label="Selling price (₹)"
-              error={fieldErrors.selling_price}
-            >
-              <input
-                id="selling_price"
-                name="selling_price"
-                type="number"
-                min="0"
-                step="0.01"
-                className={fieldClass(fieldErrors.selling_price)}
-                value={form.selling_price}
-                onChange={(e) => set('selling_price', e.target.value)}
-                placeholder="68.00"
-                aria-invalid={Boolean(fieldErrors.selling_price)}
-                aria-describedby={fieldErrors.selling_price ? 'selling_price-error' : undefined}
-              />
-            </Field>
-
-            <div className="sm:col-span-2">
-              <Field
-                name="description"
-                label="Description"
-                hint="Optional."
-                error={fieldErrors.description}
-              >
-                <textarea
-                  id="description"
-                  name="description"
-                  rows={3}
-                  className={fieldClass(fieldErrors.description)}
-                  value={form.description}
-                  onChange={(e) => set('description', e.target.value)}
-                  placeholder="Anything staff should know when handling this product."
-                  aria-invalid={Boolean(fieldErrors.description)}
-                  aria-describedby={fieldErrors.description ? 'description-error' : undefined}
-                />
-              </Field>
-            </div>
-          </div>
-        </Card>
-
-        {/* Reordering lives in its own box: these three fields are what the
-            auto-reorder toggle acts on, and grouping them makes that legible. */}
-        <Card className="p-5 lg:col-start-2">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
-            <div>
-              <h2 className="text-base font-semibold text-ink">Reordering</h2>
-              <p className="text-sm text-muted">
-                Who this SKU is bought from, and when to buy more.
-              </p>
-            </div>
-            <Toggle
-              id="auto_reorder"
-              label="Auto submit"
-              checked={form.auto_reorder}
+        {/* Outside every box: these act on the whole form, not on reordering.
+            In a dialog the same two live in its pinned footer instead. */}
+        {!inModal && (
+          <div className="flex flex-wrap items-center gap-2 lg:col-start-2">
+            <button type="submit" disabled={saving || deleting} className={buttonPrimary}>
+              {saving ? 'Saving…' : isEdit ? 'Update product' : 'Create product'}
+            </button>
+            <button
+              type="button"
+              onClick={onCancel}
               disabled={saving || deleting}
-              onChange={(checked) => set('auto_reorder', checked)}
-            />
-          </div>
-
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <Field
-                name="supplier"
-                label="Supplier"
-                hint={
-                  suppliers.length
-                    ? 'The vendor this SKU is bought from.'
-                    : 'No suppliers yet — add one on the Suppliers page first.'
-                }
-                error={fieldErrors.supplier}
-              >
-                <select
-                  id="supplier"
-                  name="supplier"
-                  className={fieldClass(fieldErrors.supplier)}
-                  value={form.supplier}
-                  onChange={(e) => set('supplier', e.target.value)}
-                  aria-invalid={Boolean(fieldErrors.supplier)}
-                  aria-describedby={fieldErrors.supplier ? 'supplier-error' : undefined}
-                >
-                  <option value="" disabled>
-                    Select a supplier…
-                  </option>
-                  {suppliers.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} — {s.contact_person}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            </div>
-
-            <Field
-              name="reorder_threshold"
-              label="Reorder threshold"
-              hint="Stock at or below this shows as Low Stock."
-              error={fieldErrors.reorder_threshold}
+              className={buttonSecondary}
             >
-              <input
-                id="reorder_threshold"
-                name="reorder_threshold"
-                type="number"
-                min="0"
-                step="1"
-                className={fieldClass(fieldErrors.reorder_threshold)}
-                value={form.reorder_threshold}
-                onChange={(e) => set('reorder_threshold', e.target.value)}
-                placeholder="40"
-                aria-invalid={Boolean(fieldErrors.reorder_threshold)}
-                aria-describedby={
-                  fieldErrors.reorder_threshold ? 'reorder_threshold-error' : undefined
-                }
+              Cancel
+            </button>
+            {/* Deleting takes the product's stock history with it, so it is
+                owner-only — matching this app's other destructive surfaces. */}
+            {isEdit && user?.role === 'owner' && (
+              <DeleteProduct
+                name={form.name}
+                busy={saving || deleting}
+                onDelete={handleDelete}
               />
-            </Field>
-
-            <Field
-              name="reorder_quantity"
-              label="Reorder quantity"
-              hint="Units to buy when it runs low."
-              error={fieldErrors.reorder_quantity}
-            >
-              <input
-                id="reorder_quantity"
-                name="reorder_quantity"
-                type="number"
-                min="0"
-                step="1"
-                className={fieldClass(fieldErrors.reorder_quantity)}
-                value={form.reorder_quantity}
-                onChange={(e) => set('reorder_quantity', e.target.value)}
-                placeholder="100"
-                aria-invalid={Boolean(fieldErrors.reorder_quantity)}
-                aria-describedby={
-                  fieldErrors.reorder_quantity ? 'reorder_quantity-error' : undefined
-                }
-              />
-            </Field>
-          </div>
-
-          <div className="mt-4 rounded-lg bg-surface-muted px-4 py-3 text-sm">
-            {openOrder ? (
-              <p className="text-ink">
-                <span className="font-semibold">Purchase order #{openOrder.id}</span> is
-                open — {openOrder.quantity} units from {openOrder.supplier_name}, raised{' '}
-                {fmtDateTime(openOrder.created_at)}. It closes when you receive stock for
-                this product.
-              </p>
-            ) : form.auto_reorder ? (
-              <p className="text-ink">
-                Stock at or below{' '}
-                <span className="font-semibold">{form.reorder_threshold || 0}</span> raises
-                a purchase order for{' '}
-                <span className="font-semibold">{form.reorder_quantity || 0}</span> units,
-                automatically.
-              </p>
-            ) : (
-              <p className="text-muted">
-                Auto submit is off — hitting the threshold only flags the product as Low
-                Stock. Turn it on to have the order raised for you.
-              </p>
             )}
           </div>
-
-        </Card>
-
-        {/* Outside both boxes: these act on the whole form, not on reordering. */}
-        <div className="flex flex-wrap items-center gap-2 lg:col-start-2">
-          <button type="submit" disabled={saving || deleting} className={buttonPrimary}>
-            {saving ? 'Saving…' : isEdit ? 'Update product' : 'Create product'}
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/products')}
-            disabled={saving || deleting}
-            className={buttonSecondary}
-          >
-            Cancel
-          </button>
-          {/* Deleting takes the product's stock history with it, so it is
-              owner-only — matching this app's other destructive surfaces. */}
-          {isEdit && user?.role === 'owner' && (
-            <DeleteProduct
-              name={form.name}
-              busy={saving || deleting}
-              onDelete={handleDelete}
-            />
-          )}
-        </div>
+        )}
       </div>
     </form>
+  )
+}
+
+/** The full-page route: create at /products/new, edit at /products/:id/edit. */
+export default function ProductForm() {
+  const navigate = useNavigate()
+  const { id } = useParams()
+  const backToList = useCallback(() => navigate('/products'), [navigate])
+
+  return (
+    <ProductFormBody
+      productId={id}
+      layout="page"
+      onSaved={backToList}
+      onDeleted={backToList}
+      onCancel={backToList}
+    />
   )
 }

@@ -108,7 +108,7 @@ function NewCustomerPanel({ cancellable = true, onCancel, onCreated }) {
 
   return (
     <div
-      className="mt-3 rounded-lg border border-line bg-surface-muted p-4"
+      className="mt-3 rounded-xl border border-line bg-surface-muted p-4"
       onKeyDown={(e) => {
         if (e.key === 'Enter') {
           e.preventDefault()
@@ -161,7 +161,7 @@ function DeleteCustomer({ customer, onDeleted }) {
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="shrink-0 rounded-lg border border-expired/40 bg-expired-soft px-3 py-2 text-sm font-medium text-expired-ink hover:bg-expired-soft/70"
+        className="shrink-0 rounded-xl border border-expired/40 bg-expired-soft px-3 py-2 text-sm font-medium text-expired-ink hover:bg-expired-soft/70"
       >
         Delete
       </button>
@@ -175,7 +175,7 @@ function DeleteCustomer({ customer, onDeleted }) {
         type="button"
         onClick={handleDelete}
         disabled={busy}
-        className="rounded-lg bg-expired px-3 py-2 text-sm font-medium text-white hover:bg-expired/90 disabled:cursor-not-allowed disabled:opacity-50"
+        className="rounded-xl bg-expired px-3 py-2 text-sm font-medium text-white hover:bg-expired/90 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {busy ? 'Deleting…' : 'Yes, delete'}
       </button>
@@ -329,7 +329,7 @@ function NewOrderForm({
                   type="button"
                   onClick={() => setItems((prev) => prev.filter((_, i) => i !== index))}
                   disabled={items.length === 1}
-                  className="rounded-lg px-2 py-1 text-muted hover:text-expired disabled:opacity-30"
+                  className="rounded-xl px-2 py-1 text-muted hover:text-expired disabled:opacity-30"
                   title="Remove item"
                 >
                   ✕

@@ -18,13 +18,13 @@ const ERROR_MS = 9000
 const TONES = {
   success: {
     // The thick left edge plus the icon carry the meaning without colour.
-    box: 'border-fresh bg-fresh-soft text-fresh-ink',
+    box: 'border-fresh/50 bg-fresh-soft text-fresh-ink',
     ring: 'bg-fresh text-white',
     icon: '✓',
     role: 'status',
   },
   error: {
-    box: 'border-expired bg-expired-soft text-expired-ink',
+    box: 'border-expired/50 bg-expired-soft text-expired-ink',
     ring: 'bg-expired text-white',
     icon: '⚠',
     role: 'alert',
@@ -64,8 +64,9 @@ export function ToastProvider({ children }) {
       <div
         aria-live="polite"
         // pointer-events-none on the stack so dismissed-but-animating toasts
-        // never swallow clicks on the page underneath.
-        className="pointer-events-none fixed bottom-6 right-6 z-50 flex w-[min(28rem,calc(100vw-3rem))] flex-col gap-3"
+        // never swallow clicks on the page underneath. Above every other layer
+        // — including an open dialog, whose failed saves report here.
+        className="pointer-events-none fixed bottom-6 right-6 z-[60] flex w-[min(28rem,calc(100vw-3rem))] flex-col gap-3"
       >
         {toasts.map((t) => {
           const tone = TONES[t.tone]
@@ -73,7 +74,7 @@ export function ToastProvider({ children }) {
             <div
               key={t.id}
               role={tone.role}
-              className={`pointer-events-auto flex items-start gap-3 rounded-xl border border-l-[6px] px-5 py-4 shadow-xl animate-toast-in ${tone.box}`}
+              className={`pointer-events-auto flex items-start gap-3 rounded-xl border border-l-[6px] px-5 py-4 shadow-raised animate-toast-in ${tone.box}`}
             >
               <span
                 aria-hidden="true"
