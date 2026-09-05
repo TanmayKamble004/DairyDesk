@@ -656,7 +656,7 @@ export function ProductFormBody({
               className={fieldClass(fieldErrors.name)}
               value={form.name}
               onChange={(e) => set('name', e.target.value)}
-              placeholder="Amul Gold Milk 1L"
+              placeholder="Golden Cow Milk 1 L Sachet"
               maxLength={100}
               aria-invalid={Boolean(fieldErrors.name)}
               aria-describedby={fieldErrors.name ? 'name-error' : undefined}
@@ -676,7 +676,7 @@ export function ProductFormBody({
             className={fieldClass(fieldErrors.sku)}
             value={form.sku}
             onChange={(e) => set('sku', e.target.value)}
-            placeholder="DRY-1001"
+            placeholder="10914"
             maxLength={32}
             aria-invalid={Boolean(fieldErrors.sku)}
             aria-describedby={fieldErrors.sku ? 'sku-error' : undefined}

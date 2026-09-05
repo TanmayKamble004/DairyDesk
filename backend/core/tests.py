@@ -15,6 +15,7 @@ from PIL import Image
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from .management.commands import seed_demo
 from .models import (
     Customer,
     Invoice,
@@ -25,10 +26,12 @@ from .models import (
     StockBatch,
     Supplier,
     User,
+    ageing_window_days,
 )
 from .services import ensure_invoice, next_invoice_number
 
 STOCK_BATCHES_URL = "/api/stock-batches/"
+INVENTORY_SUMMARY_URL = "/api/inventory/status-summary/"
 PRODUCTS_URL = "/api/products/"
 CATEGORIES_URL = "/api/products/categories/"
 SUPPLIERS_URL = "/api/suppliers/"
@@ -1205,7 +1208,7 @@ class SeedDemoTests(TestCase):
         # Give the second run a purchase order to trip over — the shape that
         # the docker entrypoint's empty-database seed never produces.
         product = Product.objects.first()
-        PurchaseOrder.objects.create(
+        stray = PurchaseOrder.objects.create(
             supplier=product.supplier, product=product, quantity=10
         )
 
@@ -1213,10 +1216,114 @@ class SeedDemoTests(TestCase):
         # so it needs somewhere other than the test log to write.
         call_command("seed_demo", stdout=StringIO())
 
-        self.assertEqual(Supplier.objects.count(), 6)
-        self.assertEqual(Product.objects.count(), 7)
-        self.assertEqual(PurchaseOrder.objects.count(), 0)
+        # Counted from the seed's own tables rather than pinned to a number, so
+        # editing the catalogue does not fail a test about deletion order.
+        self.assertEqual(Supplier.objects.count(), len(seed_demo.SUPPLIERS))
+        self.assertEqual(Product.objects.count(), len(seed_demo.CATALOGUE))
+        self.assertFalse(PurchaseOrder.objects.filter(pk=stray.pk).exists())
         self.assertFalse(Product.objects.filter(supplier__isnull=True).exists())
+
+    def test_the_seeded_shelf_shows_all_three_expiry_states(self):
+        """The 3D shelf has three colours; an all-green seed demos only one."""
+        call_command("seed_demo", stdout=StringIO())
+
+        statuses = {batch.expiry_status for batch in StockBatch.objects.all()}
+        self.assertEqual(
+            statuses,
+            {StockBatch.STATUS_FRESH, StockBatch.STATUS_AGEING, StockBatch.STATUS_EXPIRED},
+        )
+
+    def test_seeded_skus_and_prices_come_from_the_price_list(self):
+        call_command("seed_demo", stdout=StringIO())
+
+        for item in seed_demo.CATALOGUE:
+            with self.subTest(sku=item.code):
+                product = Product.objects.get(sku=item.code)
+                self.assertEqual(str(product.selling_price), item.mrp)
+                # Crate size drives the reorder levels; nothing stores it.
+                self.assertEqual(product.reorder_threshold, item.per_crate)
+
+    def test_seeded_batches_cost_what_the_price_list_charges(self):
+        """Purchase price is the sheet's post-GST price, not the MRP."""
+        call_command("seed_demo", stdout=StringIO())
+
+        for item in seed_demo.CATALOGUE:
+            batch = StockBatch.objects.filter(product__sku=item.code).first()
+            if batch is None:
+                continue  # a deliberately out-of-stock line
+            with self.subTest(sku=item.code):
+                self.assertEqual(str(batch.purchase_price), item.price_after_gst)
+                self.assertEqual(batch.shelf_life_days, item.shelf_life_days)
+
+
+class AgeingWindowTests(TestCase):
+    """Ageing is a share of a batch's own shelf life, not a fixed cutoff.
+
+    The catalogue runs from two-day milk sachets to year-long butter, so the
+    old flat three-day rule marked milk ageing before it could ever be fresh
+    and said nothing useful about ghee.
+    """
+
+    def setUp(self):
+        self.supplier = make_supplier()
+        self.today = timezone.localdate()
+
+    def batch(self, shelf_life_days, days_left):
+        """A batch of `shelf_life_days` life with `days_left` still to run."""
+        product = Product.objects.create(
+            name=f"Product {shelf_life_days}/{days_left}",
+            sku=f"SKU-{shelf_life_days}-{days_left}",
+            category="Milk",
+            supplier=self.supplier,
+            unit=Product.Unit.PIECE,
+            selling_price="10.00",
+        )
+        expiry = self.today + timedelta(days=days_left)
+        return StockBatch.objects.create(
+            product=product,
+            quantity=1,
+            purchase_price="8.00",
+            expiry_date=expiry,
+            received_date=expiry - timedelta(days=shelf_life_days),
+        )
+
+    def test_window_scales_with_shelf_life(self):
+        self.assertEqual(ageing_window_days(2), 1)  # milk sachet
+        self.assertEqual(ageing_window_days(15), 4)  # curd sachet
+        self.assertEqual(ageing_window_days(30), 8)  # paneer
+
+    def test_window_is_floored_at_a_day(self):
+        """Short-lived stock still gets one warning rather than none."""
+        self.assertEqual(ageing_window_days(1), 1)
+        self.assertEqual(ageing_window_days(0), 1)
+        self.assertEqual(ageing_window_days(-5), 1)
+
+    def test_window_is_capped_at_a_fortnight(self):
+        """Otherwise a quarter of nine months would amber the ghee for weeks."""
+        self.assertEqual(ageing_window_days(270), 14)
+        self.assertEqual(ageing_window_days(365), 14)
+
+    def test_milk_is_fresh_on_arrival_and_ageing_on_its_last_day(self):
+        """The case the flat three-day rule could not express at all."""
+        self.assertEqual(self.batch(2, 2).expiry_status, StockBatch.STATUS_FRESH)
+        self.assertEqual(self.batch(2, 1).expiry_status, StockBatch.STATUS_AGEING)
+        self.assertEqual(self.batch(2, 0).expiry_status, StockBatch.STATUS_AGEING)
+        self.assertEqual(self.batch(2, -1).expiry_status, StockBatch.STATUS_EXPIRED)
+
+    def test_ghee_with_a_month_left_is_still_fresh(self):
+        """Under the old rule this was fresh too — but so was ghee with 4 days."""
+        self.assertEqual(self.batch(270, 30).expiry_status, StockBatch.STATUS_FRESH)
+        self.assertEqual(self.batch(270, 14).expiry_status, StockBatch.STATUS_AGEING)
+
+    def test_the_same_days_left_can_read_either_way(self):
+        """Ten days is most of a curd sachet's life left, and the tail of a lassi's.
+
+        This is the whole point of the change: "days remaining" alone cannot
+        decide the question, so two batches expiring on the same date get
+        opposite answers.
+        """
+        self.assertEqual(self.batch(15, 10).expiry_status, StockBatch.STATUS_FRESH)
+        self.assertEqual(self.batch(180, 10).expiry_status, StockBatch.STATUS_AGEING)
 
 
 class CategoryLookupTests(APITestCase):
@@ -1269,4 +1376,287 @@ class CategoryLookupTests(APITestCase):
 
     def test_anonymous_cannot_read_categories(self):
         res = self.client.get(CATEGORIES_URL)
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class ExpiredStockDisposalTests(APITestCase):
+    """Writing expired stock off â€” the one action the Expired shelf page adds.
+
+    Deliberately open to staff as well as the owner: whoever clears the shelf
+    is who records it. What is gated here is not the role but the *stock* â€”
+    only expired batches can be disposed of, and only once.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = User.objects.create_user(
+            username="owner-dispose", password="pw", role=User.Role.OWNER
+        )
+        cls.staff = User.objects.create_user(
+            username="staff-dispose",
+            password="pw",
+            role=User.Role.STAFF,
+            first_name="Anjali",
+            last_name="Deshpande",
+        )
+        cls.product = Product.objects.create(
+            name="Malai Paneer",
+            sku="PNR-2001",
+            category="Paneer",
+            unit=Product.Unit.KG,
+            selling_price="420.00",
+        )
+
+    def setUp(self):
+        today = timezone.localdate()
+        # Long-lived enough that "fresh" is genuinely fresh: the ageing window
+        # is a quarter of shelf life, so a 40-day batch turns amber at day 30.
+        self.fresh = StockBatch.objects.create(
+            product=self.product,
+            quantity=30,
+            purchase_price="360.00",
+            received_date=today,
+            expiry_date=today + timedelta(days=40),
+        )
+        self.expired = StockBatch.objects.create(
+            product=self.product,
+            quantity=12,
+            purchase_price="355.00",
+            received_date=today - timedelta(days=20),
+            expiry_date=today - timedelta(days=3),
+        )
+
+    def dispose_url(self, batch):
+        return f"{STOCK_BATCHES_URL}{batch.id}/dispose/"
+
+    def test_staff_can_dispose_of_expired_stock(self):
+        self.client.force_authenticate(self.staff)
+        res = self.client.post(
+            self.dispose_url(self.expired), {"note": "Binned, off smell."}
+        )
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+        self.expired.refresh_from_db()
+        self.assertEqual(self.expired.quantity, 0)
+        self.assertEqual(self.expired.disposed_quantity, 12)
+        self.assertEqual(self.expired.disposed_by, self.staff)
+        self.assertEqual(self.expired.disposal_note, "Binned, off smell.")
+        self.assertIsNotNone(self.expired.disposed_at)
+
+    def test_owner_can_dispose_too(self):
+        self.client.force_authenticate(self.owner)
+        res = self.client.post(self.dispose_url(self.expired))
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.expired.refresh_from_db()
+        self.assertEqual(self.expired.disposed_by, self.owner)
+
+    def test_the_note_is_optional(self):
+        self.client.force_authenticate(self.staff)
+        res = self.client.post(self.dispose_url(self.expired))
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.expired.refresh_from_db()
+        self.assertEqual(self.expired.disposal_note, "")
+
+    def test_fresh_stock_cannot_be_disposed(self):
+        """Fresh stock leaving the shelf is a loss or a sale, not a disposal."""
+        self.client.force_authenticate(self.owner)
+        res = self.client.post(self.dispose_url(self.fresh))
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.fresh.refresh_from_db()
+        self.assertEqual(self.fresh.quantity, 30)
+        self.assertIsNone(self.fresh.disposed_at)
+
+    def test_ageing_stock_cannot_be_disposed(self):
+        today = timezone.localdate()
+        ageing = StockBatch.objects.create(
+            product=self.product,
+            quantity=8,
+            purchase_price="358.00",
+            received_date=today - timedelta(days=18),
+            expiry_date=today + timedelta(days=1),
+        )
+        self.assertEqual(ageing.expiry_status, StockBatch.STATUS_AGEING)
+
+        self.client.force_authenticate(self.staff)
+        res = self.client.post(self.dispose_url(ageing))
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        ageing.refresh_from_db()
+        self.assertEqual(ageing.quantity, 8)
+
+    def test_disposing_twice_is_refused(self):
+        self.client.force_authenticate(self.staff)
+        self.client.post(self.dispose_url(self.expired))
+        res = self.client.post(self.dispose_url(self.expired))
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+        self.expired.refresh_from_db()
+        # The first disposal's figures survive the second attempt â€” a repeat
+        # click must not overwrite "12 units written off" with zero.
+        self.assertEqual(self.expired.disposed_quantity, 12)
+
+    def test_anonymous_cannot_dispose(self):
+        res = self.client.post(self.dispose_url(self.expired))
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.expired.refresh_from_db()
+        self.assertIsNone(self.expired.disposed_at)
+
+    def test_the_disposal_is_reported_back_with_who_signed_it(self):
+        self.client.force_authenticate(self.staff)
+        res = self.client.post(self.dispose_url(self.expired), {"note": "Spoiled."})
+        self.assertTrue(res.data["is_disposed"])
+        self.assertEqual(res.data["disposed_by_name"], "Anjali Deshpande")
+        self.assertEqual(res.data["disposed_quantity"], 12)
+        self.assertEqual(res.data["quantity"], 0)
+
+    def test_disposed_stock_leaves_the_shelf_summary(self):
+        self.client.force_authenticate(self.staff)
+        before = {row["status"]: row for row in self.client.get(INVENTORY_SUMMARY_URL).data}
+        self.assertEqual(before[StockBatch.STATUS_EXPIRED]["quantity"], 12)
+
+        self.client.post(self.dispose_url(self.expired))
+
+        after = {row["status"]: row for row in self.client.get(INVENTORY_SUMMARY_URL).data}
+        self.assertEqual(after[StockBatch.STATUS_EXPIRED]["quantity"], 0)
+        self.assertEqual(after[StockBatch.STATUS_EXPIRED]["batch_count"], 0)
+        # Disposing expired stock must not disturb what is still sellable.
+        self.assertEqual(after[StockBatch.STATUS_FRESH]["quantity"], 30)
+
+
+class ShelfStatusSummaryTests(APITestCase):
+    """The three stacks the 3D shelf renders, and the pages behind them."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.staff = User.objects.create_user(
+            username="staff-shelf", password="pw", role=User.Role.STAFF
+        )
+        today = timezone.localdate()
+        cls.milk = Product.objects.create(
+            name="Toned Milk",
+            sku="MLK-3001",
+            category="Milk",
+            unit=Product.Unit.LITRE,
+            selling_price="54.00",
+        )
+        cls.ghee = Product.objects.create(
+            name="Cow Ghee",
+            sku="FAT-3002",
+            category="Fats",
+            unit=Product.Unit.KG,
+            selling_price="720.00",
+        )
+        # Two fresh batches across two products, one ageing, one expired.
+        cls.fresh_milk = StockBatch.objects.create(
+            product=cls.milk,
+            quantity=50,
+            purchase_price="48.00",
+            received_date=today,
+            expiry_date=today + timedelta(days=40),
+        )
+        StockBatch.objects.create(
+            product=cls.ghee,
+            quantity=20,
+            purchase_price="640.00",
+            received_date=today,
+            expiry_date=today + timedelta(days=300),
+        )
+        StockBatch.objects.create(
+            product=cls.milk,
+            quantity=9,
+            purchase_price="47.00",
+            received_date=today - timedelta(days=39),
+            expiry_date=today + timedelta(days=1),
+        )
+        cls.expired_milk = StockBatch.objects.create(
+            product=cls.milk,
+            quantity=4,
+            purchase_price="46.00",
+            received_date=today - timedelta(days=45),
+            expiry_date=today - timedelta(days=2),
+        )
+
+    def setUp(self):
+        self.client.force_authenticate(self.staff)
+
+    def summary(self):
+        res = self.client.get(INVENTORY_SUMMARY_URL)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        return {row["status"]: row for row in res.data}
+
+    def test_every_status_is_present_even_at_zero(self):
+        """Three stacks, always â€” an empty one still reports nothing expired."""
+        StockBatch.objects.all().delete()
+        rows = self.client.get(INVENTORY_SUMMARY_URL).data
+        self.assertEqual(
+            [row["status"] for row in rows],
+            [StockBatch.STATUS_EXPIRED, StockBatch.STATUS_AGEING, StockBatch.STATUS_FRESH],
+        )
+        self.assertTrue(all(row["quantity"] == 0 for row in rows))
+
+    def test_quantities_and_counts_are_bucketed_by_status(self):
+        rows = self.summary()
+        self.assertEqual(rows[StockBatch.STATUS_FRESH]["quantity"], 70)
+        self.assertEqual(rows[StockBatch.STATUS_FRESH]["batch_count"], 2)
+        self.assertEqual(rows[StockBatch.STATUS_FRESH]["product_count"], 2)
+        self.assertEqual(rows[StockBatch.STATUS_AGEING]["quantity"], 9)
+        self.assertEqual(rows[StockBatch.STATUS_EXPIRED]["quantity"], 4)
+
+    def test_a_product_counts_once_per_status_not_once_per_batch(self):
+        StockBatch.objects.create(
+            product=self.milk,
+            quantity=15,
+            purchase_price="48.00",
+            received_date=timezone.localdate(),
+            expiry_date=timezone.localdate() + timedelta(days=40),
+        )
+        rows = self.summary()
+        self.assertEqual(rows[StockBatch.STATUS_FRESH]["batch_count"], 3)
+        self.assertEqual(rows[StockBatch.STATUS_FRESH]["product_count"], 2)
+
+    def test_next_expiry_is_the_earliest_date_in_the_bucket(self):
+        rows = self.summary()
+        self.assertEqual(
+            rows[StockBatch.STATUS_EXPIRED]["next_expiry"],
+            timezone.localdate() - timedelta(days=2),
+        )
+        self.assertEqual(
+            rows[StockBatch.STATUS_FRESH]["next_expiry"],
+            timezone.localdate() + timedelta(days=40),
+        )
+
+    def test_sold_out_batches_are_off_the_shelf(self):
+        self.fresh_milk.quantity = 0
+        self.fresh_milk.save(update_fields=["quantity"])
+        rows = self.summary()
+        self.assertEqual(rows[StockBatch.STATUS_FRESH]["quantity"], 20)
+        self.assertEqual(rows[StockBatch.STATUS_FRESH]["batch_count"], 1)
+
+    def test_batches_can_be_listed_by_status(self):
+        """The filter behind each stack's page."""
+        res = self.client.get(STOCK_BATCHES_URL, {"status": StockBatch.STATUS_EXPIRED})
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 1)
+        self.assertEqual(res.data[0]["quantity"], 4)
+        self.assertEqual(res.data[0]["product_name"], "Toned Milk")
+
+    def test_an_unknown_status_filter_is_ignored_rather_than_erroring(self):
+        res = self.client.get(STOCK_BATCHES_URL, {"status": "mouldy"})
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 4)
+
+    def test_disposed_batches_can_be_listed_separately(self):
+        self.expired_milk.dispose(self.staff, "Cleared at close.")
+
+        listed = self.client.get(STOCK_BATCHES_URL, {"disposed": "true"}).data
+        self.assertEqual([row["id"] for row in listed], [self.expired_milk.id])
+        self.assertEqual(listed[0]["disposal_note"], "Cleared at close.")
+
+        outstanding = self.client.get(
+            STOCK_BATCHES_URL, {"status": StockBatch.STATUS_EXPIRED, "disposed": "false"}
+        ).data
+        self.assertEqual(outstanding, [])
+
+    def test_the_summary_needs_a_login(self):
+        self.client.force_authenticate(None)
+        res = self.client.get(INVENTORY_SUMMARY_URL)
         self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)

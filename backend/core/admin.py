@@ -1,11 +1,7 @@
-from datetime import timedelta
-
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from django.utils import timezone
 
 from .models import (
-    AGEING_THRESHOLD_DAYS,
     Customer,
     Invoice,
     Order,
@@ -61,15 +57,22 @@ class ExpiryStatusFilter(admin.SimpleListFilter):
         ]
 
     def queryset(self, request, queryset):
-        today = timezone.localdate()
-        ageing_cutoff = today + timedelta(days=AGEING_THRESHOLD_DAYS)
-        if self.value() == StockBatch.STATUS_EXPIRED:
-            return queryset.filter(expiry_date__lt=today)
-        if self.value() == StockBatch.STATUS_AGEING:
-            return queryset.filter(expiry_date__gte=today, expiry_date__lte=ageing_cutoff)
-        if self.value() == StockBatch.STATUS_FRESH:
-            return queryset.filter(expiry_date__gt=ageing_cutoff)
-        return queryset
+        """Filter on the computed status, one batch at a time.
+
+        The ageing window now depends on each batch's own shelf life, so there
+        is no single cutoff date to hand SQL. Reading the rows and asking each
+        one keeps this filter and StockBatch.expiry_status incapable of
+        disagreeing, at a cost the admin can afford.
+        """
+        wanted = self.value()
+        if wanted not in {
+            StockBatch.STATUS_FRESH,
+            StockBatch.STATUS_AGEING,
+            StockBatch.STATUS_EXPIRED,
+        }:
+            return queryset
+        matching = [batch.pk for batch in queryset if batch.expiry_status == wanted]
+        return queryset.filter(pk__in=matching)
 
 
 @admin.register(StockBatch)
@@ -81,10 +84,21 @@ class StockBatchAdmin(admin.ModelAdmin):
         "received_date",
         "expiry_date",
         "expiry_status",
+        "disposed_at",
     ]
     list_filter = [ExpiryStatusFilter, "product", "expiry_date"]
     search_fields = ["product__name"]
     date_hierarchy = "expiry_date"
+    # The write-off is a record, not an editable field: it is stamped by
+    # StockBatch.dispose(), which is the only caller that has checked the batch
+    # was expired. Editable here, the admin could sign a disposal to someone
+    # who never made one.
+    readonly_fields = [
+        "disposed_at",
+        "disposed_by",
+        "disposed_quantity",
+        "disposal_note",
+    ]
 
     @admin.display(description="Expiry status")
     def expiry_status(self, obj):

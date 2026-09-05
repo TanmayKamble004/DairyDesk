@@ -4,6 +4,7 @@ import Layout from './components/Layout'
 import { ToastProvider } from './components/Toast'
 import Alerts from './pages/Alerts'
 import Dashboard from './pages/Dashboard'
+import ExpiredStock from './pages/ExpiredStock'
 import Inventory from './pages/Inventory'
 import Invoices from './pages/Invoices'
 import Login from './pages/Login'
@@ -13,6 +14,7 @@ import Products from './pages/Products'
 import Reports from './pages/Reports'
 import Staff from './pages/Staff'
 import StaffForm from './pages/StaffForm'
+import StockByStatus from './pages/StockByStatus'
 import StockLevels from './pages/StockLevels'
 import SupplierForm from './pages/SupplierForm'
 import Suppliers from './pages/Suppliers'
@@ -58,6 +60,14 @@ export default function App() {
               <Route path="/products/:id/edit" element={<ProductForm />} />
               <Route path="/stock" element={<StockLevels />} />
               <Route path="/inventory" element={<Inventory />} />
+              {/* The three stacks on the dashboard's 3D shelf. Expired is
+                  listed first and named in full because it is a route in its
+                  own right — it carries the disposal flow, which the two
+                  read-only statuses have no business knowing about. React
+                  Router ranks the static segment above `:status` either way.
+                  Disposal is open to staff, so there is no owner gate here. */}
+              <Route path="/inventory/expired" element={<ExpiredStock />} />
+              <Route path="/inventory/:status" element={<StockByStatus />} />
               <Route path="/orders" element={<Orders />} />
               <Route path="/suppliers" element={<Suppliers />} />
               <Route path="/suppliers/new" element={<SupplierForm />} />

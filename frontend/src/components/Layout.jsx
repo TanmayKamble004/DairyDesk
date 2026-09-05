@@ -213,7 +213,7 @@ export default function Layout() {
         {/* White band under the logo, as in the reference. The rounded bottom
             edge is what blends the band into the gradient below it. */}
         <div className="flex h-[84px] shrink-0 items-center rounded-br-3xl bg-surface px-5 lg:rounded-tr-3xl">
-          <Logo className="h-10" />
+          <Logo className="h-14" />
         </div>
 
         {/* Grow is deliberately off here and on the panel below: the page list

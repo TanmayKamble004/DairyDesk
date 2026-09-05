@@ -17,6 +17,7 @@ import {
 import { BarChart, DonutChart, foldSeries } from '../components/charts'
 import InventoryShelf from '../components/InventoryShelf'
 import { useAlerts } from '../data/alerts'
+import { EXPIRY_STATUS } from '../data/expiryStatus'
 
 const formatINR = (value) =>
   `₹${Number(value).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
@@ -96,22 +97,34 @@ function TileIcon({ name }) {
 /* ---------------------------------------------------------------- KPIs --- */
 
 // Tile definitions in display order; a tile renders only if its key is in the
-// API response (financial KPIs are absent for staff).
+// API response (financial KPIs are absent for staff). A tile with `to` is a
+// link rather than a figure — see KpiTiles.
 const KPI_TILES = [
   { key: 'total_available_stock_value', label: 'Stock value (available)', format: formatINR },
   { key: 'todays_sales_total', label: "Today's sales", format: formatINR },
   { key: 'todays_order_count', label: "Today's orders" },
   { key: 'products_ageing_count', label: 'Products ageing', warnIfPositive: 'ageing' },
-  { key: 'products_expired_count', label: 'Products expired', warnIfPositive: 'expired' },
+  {
+    key: 'products_expired_count',
+    label: 'Products expired',
+    warnIfPositive: 'expired',
+    // This tile says "Action required"; the Expired page is where the action
+    // is. Linked whatever the count, because a tile that is only sometimes
+    // clickable teaches nobody that it is.
+    to: EXPIRY_STATUS.expired.path,
+  },
   { key: 'unpaid_invoice_count', label: 'Unpaid invoices', warnIfPositive: 'ageing' },
 ]
 
 // A tile that needs attention switches to its light status surface and gains a
-// worded note, so the alert never reads as colour alone.
+// worded note, so the alert never reads as colour alone. `hover` is used only
+// by the tiles that link somewhere — it lives here rather than at the call site
+// so a second linked tile cannot end up wearing this one's colour.
 const WARN_TONES = {
   ageing: {
     bg: 'bg-ageing-soft/40',
     border: 'border-ageing/25',
+    hover: 'hover:border-ageing',
     label: 'text-ageing-ink',
     value: 'text-ageing-ink',
     dot: 'bg-ageing',
@@ -121,6 +134,7 @@ const WARN_TONES = {
   expired: {
     bg: 'bg-coral-soft/40',
     border: 'border-coral/40',
+    hover: 'hover:border-coral',
     label: 'text-coral-ink',
     value: 'text-coral-ink',
     dot: 'bg-expired',
@@ -205,11 +219,12 @@ function KpiTiles({ kpis }) {
   const tiles = KPI_TILES.filter((tile) => kpis[tile.key] !== undefined)
   return (
     <>
-      {tiles.map(({ key, label, format, warnIfPositive }) => {
+      {tiles.map(({ key, label, format, warnIfPositive, to }) => {
         const raw = kpis[key]
         const tone = warnIfPositive && Number(raw) > 0 ? WARN_TONES[warnIfPositive] : null
-        return (
-          <Card key={key} glass className="flex flex-col p-5" bg={tone?.bg} border={tone?.border}>
+
+        const face = (
+          <>
             <div className="flex items-start justify-between gap-3">
               <span className={`${tileLabelClass} ${tone ? tone.label : 'text-muted'}`}>
                 {label}
@@ -231,6 +246,32 @@ function KpiTiles({ kpis }) {
                 {tone.note}
               </div>
             )}
+          </>
+        )
+
+        // A linked tile reproduces Card's surface rather than nesting inside
+        // one, exactly as AlertsCard below does: an <a> wrapped around a <div>
+        // would leave the padding outside the hit area, so the corner of a tile
+        // that looks clickable would not be.
+        if (to) {
+          return (
+            <Link
+              key={key}
+              to={to}
+              className={`flex flex-col rounded-2xl border p-5 glass-chrome transition-colors ${
+                tone
+                  ? `${tone.bg} ${tone.border} ${tone.hover}`
+                  : 'border-glass-line bg-glass hover:border-brand/40'
+              }`}
+            >
+              {face}
+            </Link>
+          )
+        }
+
+        return (
+          <Card key={key} glass className="flex flex-col p-5" bg={tone?.bg} border={tone?.border}>
+            {face}
           </Card>
         )
       })}

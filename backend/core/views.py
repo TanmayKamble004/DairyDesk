@@ -30,6 +30,7 @@ from .serializers import (
     PurchaseOrderSerializer,
     StaffPasswordSerializer,
     StaffSerializer,
+    StockBatchDisposalSerializer,
     StockBatchSerializer,
     SupplierSerializer,
 )
@@ -199,10 +200,73 @@ class ProductViewSet(
 class StockBatchViewSet(
     mixins.ListModelMixin, mixins.CreateModelMixin, viewsets.GenericViewSet
 ):
-    """POST = receive new stock."""
+    """POST = receive new stock; GET = the batch list behind the shelf's pages."""
 
-    queryset = StockBatch.objects.select_related("product")
+    queryset = StockBatch.objects.select_related("product", "disposed_by")
     serializer_class = StockBatchSerializer
+
+    def get_queryset(self):
+        """`?status=` and `?disposed=` — the filters the three shelf pages use.
+
+        Status is read in Python rather than handed to SQL: the ageing window
+        depends on each batch's own shelf life, so there is no single cutoff
+        date to filter on. Same trade the admin's ExpiryStatusFilter makes, and
+        for the same reason — one definition of "ageing", in the model.
+        """
+        queryset = super().get_queryset()
+
+        disposed = self.request.query_params.get("disposed")
+        if disposed == "true":
+            queryset = queryset.filter(disposed_at__isnull=False)
+        elif disposed == "false":
+            queryset = queryset.filter(disposed_at__isnull=True)
+
+        wanted = self.request.query_params.get("status")
+        if wanted in STATUS_SEVERITY:
+            matching = [b.pk for b in queryset if b.expiry_status == wanted]
+            queryset = queryset.filter(pk__in=matching)
+        return queryset
+
+    @action(detail=True, methods=["post"])
+    def dispose(self, request, pk=None):
+        """Write an expired batch off — the stock went in the bin.
+
+        Open to staff as well as the owner: whoever clears the shelf is who
+        records it, and making them fetch the owner first is how disposals end
+        up unrecorded. It is not a destructive action in the sense the owner
+        gate protects — the row, its dates and its cost all stay; only the
+        quantity goes to zero, and the write-off is signed.
+
+        Expired stock only. Fresh or ageing stock leaving the shelf is a loss or
+        a sale, neither of which this endpoint is, so both are refused rather
+        than quietly accepted.
+        """
+        batch = self.get_object()
+
+        if batch.is_disposed:
+            raise ValidationError(
+                {
+                    "detail": (
+                        f"This batch of {batch.product.name} was already disposed of "
+                        f"on {batch.disposed_at:%d %b %Y}."
+                    )
+                }
+            )
+        if batch.expiry_status != StockBatch.STATUS_EXPIRED:
+            raise ValidationError(
+                {
+                    "detail": (
+                        f"Only expired stock can be disposed of. This batch of "
+                        f"{batch.product.name} is {batch.expiry_status} — it expires "
+                        f"on {batch.expiry_date:%d %b %Y}."
+                    )
+                }
+            )
+
+        serializer = StockBatchDisposalSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        batch.dispose(request.user, serializer.validated_data["note"].strip())
+        return Response(self.get_serializer(batch).data)
 
 
 class SupplierViewSet(viewsets.ModelViewSet):
@@ -348,6 +412,55 @@ class InventoryView(APIView):
                 }
             )
         return Response(rows)
+
+
+class InventoryStatusView(APIView):
+    """The whole shelf in three numbers — one per expiry status.
+
+    The 3D shelf used to render a stack per product, which meant fifty-eight
+    stacks the moment the catalogue filled up: a colourful thicket that told
+    nobody how much stock was actually at risk. It now renders one stack per
+    status, and this is what those three stacks are made of.
+
+    Deliberately its own endpoint rather than a shape bolted onto
+    /api/inventory/: that one answers "per product" and is a list, so there is
+    no room in it for a total, and two consumers already read it as one.
+    """
+
+    def get(self, request):
+        buckets = {
+            status: {
+                "status": status,
+                "quantity": 0,
+                "batch_count": 0,
+                "product_count": 0,
+                "next_expiry": None,
+            }
+            for status in STATUS_SEVERITY
+        }
+        products_seen = {status: set() for status in STATUS_SEVERITY}
+
+        # Disposed batches are excluded by the same quantity check that hides
+        # sold-out ones: disposal zeroes the quantity. Nothing on the shelf is
+        # stock the store no longer holds.
+        for batch in StockBatch.objects.filter(quantity__gt=0).select_related("product"):
+            bucket = buckets[batch.expiry_status]
+            bucket["quantity"] += batch.quantity
+            bucket["batch_count"] += 1
+            products_seen[batch.expiry_status].add(batch.product_id)
+            # For fresh and ageing this is the next thing to worry about; for
+            # expired it is the oldest thing still sitting there. Same field,
+            # because in both cases it is the earliest date in the bucket.
+            if bucket["next_expiry"] is None or batch.expiry_date < bucket["next_expiry"]:
+                bucket["next_expiry"] = batch.expiry_date
+
+        for status, bucket in buckets.items():
+            bucket["product_count"] = len(products_seen[status])
+
+        # Severity order (expired first) is the API's, not the shelf's — the
+        # shelf lays them out fresh to expired. Returned as a list so the order
+        # is part of the response rather than left to the client's key order.
+        return Response([buckets[status] for status in STATUS_SEVERITY])
 
 
 class DashboardView(APIView):

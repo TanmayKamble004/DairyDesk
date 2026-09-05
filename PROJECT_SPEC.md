@@ -40,8 +40,16 @@ Use Django models. Batches matter because expiry is per-batch.
 - **User** — extend `AbstractUser`, add `role` = `owner` | `staff`.
 - **Product** — `name`, `category`, `unit` (e.g. litre/kg/piece), `selling_price`.
 - **StockBatch** — FK `product`, `quantity`, `purchase_price`, `expiry_date`, `received_date`.
-  - Expiry status is *computed*, not stored: `fresh` (>3 days to expiry), `ageing` (≤3 days),
-    `expired` (past). Threshold configurable via a constant.
+  - Expiry status is *computed*, not stored: `expired` (past), `ageing` (inside the batch's
+    ageing window), else `fresh`. The window is a *share* of the batch's own shelf life
+    (`expiry_date - received_date`) rather than a flat number of days — a quarter of it,
+    floored at 1 day and capped at 14. A single cutoff cannot serve a catalogue holding
+    2-day milk sachets and 365-day butter at once. Constants in `core.models`.
+  - Disposal is recorded, not destructive: `disposed_at`, `disposed_by`, `disposed_quantity`
+    and `disposal_note`, written only by `StockBatch.dispose()`. A written-off batch keeps
+    its row and its dates and drops `quantity` to zero — the store still has to be able to
+    say how much it wrote off and who signed for it. Everything else already ignores
+    zero-quantity batches, so nothing else needs a disposal check.
 - **Customer** — `name`, `phone`, `address`.
 - **Order** — FK `customer`, `status` = `pending` | `processed` | `delivered`, `created_at`.
 - **OrderItem** — FK `order`, FK `product`, `quantity`, `unit_price` (snapshot at order time).
@@ -67,10 +75,20 @@ simple permission class — role check).
 
 - `POST /api/auth/login/` → JWT pair
 - `GET/POST /api/products/`
-- `GET/POST /api/stock-batches/` — POST = "receive new stock"
+- `GET/POST /api/stock-batches/` — POST = "receive new stock". GET takes `?status=` and
+  `?disposed=` — the two filters the shelf's status pages list by. Status is matched in
+  Python, not SQL: the ageing window depends on each batch's own shelf life, so there is
+  no single cutoff date to hand the database.
+- `POST /api/stock-batches/{id}/dispose/` — write an expired batch off. Optional `note`.
+  **Open to staff as well as the owner** (whoever clears the shelf is who records it), and
+  refused on anything not expired, or already disposed of. The row survives: quantity goes
+  to zero and `disposed_at` / `disposed_by` / `disposed_quantity` record the write-off.
 - `GET /api/inventory/` → per-product summary: name, category, total available qty, expiry
-  status breakdown (counts of fresh/ageing/expired batches), nearest expiry date. **This is
-  the endpoint the 3D shelf consumes.**
+  status breakdown (counts of fresh/ageing/expired batches), nearest expiry date. Feeds the
+  Inventory table and the dashboard panels.
+- `GET /api/inventory/status-summary/` → three rows, one per expiry status, each with
+  `quantity`, `batch_count`, `product_count` and `next_expiry`. **This is the endpoint the
+  3D shelf consumes.**
 - `GET/POST /api/customers/`
 - `GET/POST /api/orders/`, `PATCH /api/orders/{id}/` (status transitions)
 - `GET /api/invoices/` (owner only)
@@ -89,23 +107,33 @@ Pages:
 1. **Login** — JWT, store token, redirect to dashboard.
 2. **Dashboard** — KPI tiles across the top + the **3D inventory shelf** as the centerpiece.
 3. **Inventory** — table of products with available qty + expiry status; "Receive stock" form.
-4. **Orders** — list + "New order" (pick customer, add products/qty); status transition
+4. **Fresh / Ageing stock** (`/inventory/fresh`, `/inventory/ageing`) — the batches behind
+   two of the shelf's stacks, soonest to expire first. Read-only.
+5. **Expired stock** (`/inventory/expired`) — the third stack, plus the disposal flow:
+   a Dispose button per batch, a confirm dialog with an optional note, and a log of recent
+   write-offs showing who signed each one. Not owner-gated — see the dispose endpoint above.
+6. **Orders** — list + "New order" (pick customer, add products/qty); status transition
    buttons (pending → processed → delivered). On delivered, show generated invoice.
-5. (owner only) **Invoices** — list with paid/unpaid status.
+7. (owner only) **Invoices** — list with paid/unpaid status.
 
 Keep routing simple (react-router). Clean, minimal Tailwind UI. Role-gate the Invoices link.
 
 ### The 3D inventory shelf (the centerpiece — build with react-three-fiber)
 - A `<Canvas>` with `OrbitControls` (from drei) so users can rotate/zoom.
-- For each product from `GET /api/inventory/`, render a **stack of crates** (simple
-  `<boxGeometry>` instances). Stack height / crate count ∝ available quantity (cap the visual
-  so huge stock doesn't fly off-screen — e.g. 1 crate per N units, min 1).
-- Crate color by worst expiry status among that product's batches:
-  fresh = green, ageing = amber, expired = red.
-- Lay stacks out in a row/grid on a simple shelf/floor plane. Soft lighting, subtle shadows.
-- Label each stack with the product name (drei `<Text>` or `<Html>`).
-- **Click a stack** → raise a detail panel (product name, available qty, batch breakdown,
-  nearest expiry). Hover → highlight.
+- **Three stacks, one per expiry status** — fresh, ageing, expired, left to right — from
+  `GET /api/inventory/status-summary/`. Not one per product: a stack per product was legible
+  at seven products and a thicket at fifty-eight, and the question a dashboard asks of this
+  panel is how much stock is at risk *right now*, which three stacks answer at a glance.
+- Crate count ∝ that status's total quantity, scaled so the biggest bucket is exactly
+  `MAX_CRATES` (7 — beyond that the top crate leaves the default camera frame). An empty
+  bucket renders as its pad alone: "nothing expired" is worth saying, not worth hiding.
+- Crate color by status: fresh = green, ageing = amber, expired = red — the app's own
+  tokens, shared with every badge and tile via `src/data/expiryStatus.js`.
+- Each stack is labelled with its status, total units and batch count (drei `<Html>`), and
+  the label is a real `<button>`, so the shelf is reachable by keyboard.
+- **Click a stack** → navigate to that status's page. Hover → lift + highlight. The shelf is
+  navigation now, so the WebGL fallback keeps the three links: disposing of expired stock
+  must not depend on a working GPU.
 - Data-driven: it must reflect the real API response, not hardcoded. This is the whole point.
 
 Keep geometry parametric (boxes), no imported models. Performance is a non-issue at demo scale.

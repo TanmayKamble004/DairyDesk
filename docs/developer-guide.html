@@ -661,11 +661,19 @@ data leak &mdash; usually with no error message.</p>
 
 <div class="rulecard">
   <h3>6.7 &nbsp;<code>expiry_status</code> is computed, never stored</h3>
-  <p>It is a <code>@property</code> on <code>StockBatch</code> derived from today's date and
-  <code>AGEING_THRESHOLD_DAYS = 3</code>. Fresh &gt; 3 days left, ageing ≤ 3 days, expired past.</p>
-  <div class="why"><b>Why:</b> a stored column would be stale the next morning. This one constant
-  drives the 3D shelf colours, the dashboard warning counts and the inventory endpoint &mdash;
-  change it and all three move together.</div>
+  <p>It is a <code>@property</code> on <code>StockBatch</code> derived from today's date and the
+  batch's <i>own</i> ageing window: <code>ageing_window_days()</code> returns a quarter of its
+  shelf life (<code>expiry_date - received_date</code>), floored at 1 day and capped at 14.
+  Expired if the date has passed, ageing if inside that window, otherwise fresh.</p>
+  <div class="why"><b>Why:</b> a stored column would be stale the next morning, and a flat
+  cutoff cannot serve a catalogue running from 2-day milk sachets to 365-day butter &mdash; three
+  days' notice is a milk pouch's entire life and noise on a tin of ghee. Making the window
+  proportional means "ageing" says the same thing about every line. The function drives the
+  3D shelf colours, the dashboard warning counts and the inventory endpoint, so all three
+  move together.</div>
+  <div class="why"><b>Note:</b> because the window is per-batch, there is no single cutoff date
+  to hand SQL. The admin's expiry filter therefore evaluates rows in Python rather than
+  filtering in the database &mdash; the one place that trade-off is made.</div>
 </div>
 
 <div class="rulecard">

@@ -1250,8 +1250,9 @@ function addProductModal() {
     sub: "Create a new SKU in this store's catalogue.",
     submitLabel: "Add product",
     fields: [
-      { name: "name", label: "Product name", full: true, placeholder: "e.g. Amul Cheese Slices" },
-      { name: "sku", label: "SKU", placeholder: "GRO-3005" },
+      { name: "name", label: "Product name", full: true, placeholder: "e.g. Cheese Slices 100 g" },
+      // Heritage item codes are five digits, not the old letter-prefixed SKUs.
+      { name: "sku", label: "SKU", placeholder: "73006" },
       { name: "category", label: "Category", type: "select", options: categories },
       { name: "quantity", label: "Quantity", type: "number", min: 0 },
       { name: "unitPrice", label: "Unit price (₹)", type: "number", min: 0, step: "0.01" },
