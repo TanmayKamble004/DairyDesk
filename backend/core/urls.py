@@ -19,6 +19,13 @@ urlpatterns = [
     path("auth/login/", views.LoginView.as_view(), name="token-obtain"),
     path("auth/refresh/", TokenRefreshView.as_view(), name="token-refresh"),
     path("inventory/", views.InventoryView.as_view(), name="inventory"),
+    # Above the router only in the sense that it is its own path; the shelf's
+    # three stacks come from here, the per-product rows from the line above.
+    path(
+        "inventory/status-summary/",
+        views.InventoryStatusView.as_view(),
+        name="inventory-status-summary",
+    ),
     path("dashboard/", views.DashboardView.as_view(), name="dashboard"),
     path("", include(router.urls)),
 ]

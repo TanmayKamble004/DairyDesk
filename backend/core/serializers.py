@@ -289,7 +289,14 @@ class ProductSerializer(serializers.ModelSerializer):
 
 class StockBatchSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source="product.name", read_only=True)
+    product_unit = serializers.CharField(source="product.unit", read_only=True)
+    product_category = serializers.CharField(source="product.category", read_only=True)
     expiry_status = serializers.CharField(read_only=True)
+    # The disposal record. Read-only across the board — it is written by the
+    # dispose action, which is the only place that can check the batch is
+    # actually expired first.
+    is_disposed = serializers.BooleanField(read_only=True)
+    disposed_by_name = serializers.SerializerMethodField()
 
     class Meta:
         model = StockBatch
@@ -297,12 +304,36 @@ class StockBatchSerializer(serializers.ModelSerializer):
             "id",
             "product",
             "product_name",
+            "product_unit",
+            "product_category",
             "quantity",
             "purchase_price",
             "expiry_date",
             "received_date",
             "expiry_status",
+            "is_disposed",
+            "disposed_at",
+            "disposed_by_name",
+            "disposed_quantity",
+            "disposal_note",
         ]
+        read_only_fields = [
+            "disposed_at",
+            "disposed_quantity",
+            "disposal_note",
+        ]
+
+    def get_disposed_by_name(self, batch):
+        """Who signed for the write-off, or None if nobody has.
+
+        Null also when the account has since been deleted — `disposed_by` is
+        SET_NULL, so the disposal outlives the person. The page reads that back
+        as "account removed" rather than as "never disposed", which is what
+        `disposed_at` answers.
+        """
+        if batch.disposed_by is None:
+            return None
+        return batch.disposed_by.get_full_name() or batch.disposed_by.username
 
     def to_representation(self, batch):
         """Hide the factory buying price from everyone but the owner.
@@ -323,6 +354,20 @@ class StockBatchSerializer(serializers.ModelSerializer):
         # delivered, so it closes any reorder outstanding for that product.
         fulfil_purchase_orders(batch.product)
         return batch
+
+
+class StockBatchDisposalSerializer(serializers.Serializer):
+    """POST /api/stock-batches/{id}/dispose/ — what to file with the write-off.
+
+    Only a note: what was disposed, when, by whom and how much all come from the
+    batch and the request, so there is nothing else for the caller to get wrong.
+    The note is optional because the common case ("it expired") is already said
+    by the batch's own dates.
+    """
+
+    note = serializers.CharField(
+        max_length=200, required=False, allow_blank=True, default=""
+    )
 
 
 class SupplierSerializer(serializers.ModelSerializer):

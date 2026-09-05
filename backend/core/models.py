@@ -1,4 +1,5 @@
 """Core data models for DairyDesk (spec section 3, MVP cut)."""
+import math
 from datetime import timedelta
 from decimal import Decimal
 
@@ -8,8 +9,33 @@ from django.db import models
 from django.db.models import Sum
 from django.utils import timezone
 
-# Days-to-expiry at or below which a batch counts as "ageing".
-AGEING_THRESHOLD_DAYS = 3
+# "Ageing" is the share of a batch's own shelf life it has left, not a fixed
+# number of days. See ageing_window_days below for why.
+AGEING_LIFE_FRACTION = 0.25
+MIN_AGEING_WINDOW_DAYS = 1
+MAX_AGEING_WINDOW_DAYS = 14
+
+
+def ageing_window_days(shelf_life_days):
+    """Days before expiry at which a batch starts counting as "ageing".
+
+    A single cutoff cannot serve a catalogue running from two-day milk sachets
+    to year-long butter: three days' notice is the entire life of a milk pouch,
+    and noise on a tin of ghee. So the window is a quarter of the batch's own
+    shelf life —
+
+      * floored at a day, so even same-week stock gets one warning; and
+      * capped at a fortnight, because nobody needs telling in March that the
+        ghee expires in December, and a shelf where every long-life line glows
+        amber tells the shop nothing.
+
+    Shelf life comes from the batch itself (expiry_date - received_date), so
+    nothing about it is stored twice.
+    """
+    if shelf_life_days <= 0:
+        return MIN_AGEING_WINDOW_DAYS
+    window = math.ceil(shelf_life_days * AGEING_LIFE_FRACTION)
+    return max(MIN_AGEING_WINDOW_DAYS, min(MAX_AGEING_WINDOW_DAYS, window))
 
 
 class User(AbstractUser):
@@ -92,6 +118,30 @@ class StockBatch(models.Model):
     expiry_date = models.DateField()
     received_date = models.DateField(default=timezone.localdate)
 
+    # --- Disposal: expired stock physically thrown away. ---
+    #
+    # Written by `dispose()` below, never by hand. A disposed batch keeps its
+    # row and its dates and drops its quantity to zero, because the store still
+    # has to be able to answer "how much did we write off, and who signed for
+    # it" long after the stock itself is gone. Deleting the row would answer
+    # none of that, and the rest of the app already ignores zero-quantity
+    # batches, so nothing else needs a disposal check.
+    disposed_at = models.DateTimeField(null=True, blank=True)
+    # SET_NULL rather than CASCADE: a staff member leaving must not erase the
+    # write-offs they signed for. Their name survives on `disposed_by_name`
+    # only as long as the account does — the record itself does not depend on it.
+    disposed_by = models.ForeignKey(
+        "User",
+        on_delete=models.SET_NULL,
+        related_name="disposed_batches",
+        null=True,
+        blank=True,
+    )
+    # What `quantity` held at the moment of disposal — the size of the write-off.
+    # Kept separately because `quantity` itself is zeroed.
+    disposed_quantity = models.PositiveIntegerField(default=0)
+    disposal_note = models.CharField(max_length=200, blank=True)
+
     class Meta:
         ordering = ["expiry_date", "received_date"]
         verbose_name_plural = "stock batches"
@@ -100,14 +150,60 @@ class StockBatch(models.Model):
         return f"{self.product.name} × {self.quantity} (exp {self.expiry_date})"
 
     @property
+    def shelf_life_days(self):
+        """The life this batch was received with, in days.
+
+        Not a stored field: the two dates already say it, and a third column
+        would be free to disagree with them.
+        """
+        return (self.expiry_date - self.received_date).days
+
+    @property
+    def ageing_window(self):
+        """Days before this batch's expiry at which it starts reading "ageing"."""
+        return ageing_window_days(self.shelf_life_days)
+
+    @property
     def expiry_status(self):
-        """Computed: fresh (> threshold days left), ageing (<= threshold), expired (past)."""
+        """Computed: expired (past), ageing (inside its window), else fresh.
+
+        The window is proportional to the batch's own shelf life, so a milk
+        sachet turns amber on its last day while ghee gets a fortnight's notice.
+        """
         today = timezone.localdate()
         if self.expiry_date < today:
             return self.STATUS_EXPIRED
-        if self.expiry_date <= today + timedelta(days=AGEING_THRESHOLD_DAYS):
+        if self.expiry_date <= today + timedelta(days=self.ageing_window):
             return self.STATUS_AGEING
         return self.STATUS_FRESH
+
+    @property
+    def is_disposed(self):
+        """Whether this batch has been written off. `disposed_at` is the record."""
+        return self.disposed_at is not None
+
+    def dispose(self, user, note=""):
+        """Write this batch off: the stock was thrown away.
+
+        Only ever valid on expired stock — disposing fresh or ageing stock is
+        not a disposal, it is a loss, and this app has no shape for that. The
+        caller enforces it (see StockBatchViewSet.dispose), because a model
+        method that raised a DRF error would drag the API layer down here.
+        """
+        self.disposed_quantity = self.quantity
+        self.quantity = 0
+        self.disposed_at = timezone.now()
+        self.disposed_by = user
+        self.disposal_note = note
+        self.save(
+            update_fields=[
+                "quantity",
+                "disposed_quantity",
+                "disposed_at",
+                "disposed_by",
+                "disposal_note",
+            ]
+        )
 
 
 class Supplier(models.Model):
