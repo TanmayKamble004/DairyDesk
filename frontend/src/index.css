@@ -4,62 +4,216 @@
    previous build's output and re-emits utilities that no longer exist in src. */
 @source not "../dist";
 
+/* Viewports too short to spend height on ornament: the rail's status panel
+   drops back to its compact form so the page list is never pushed off-screen. */
+@custom-variant short (@media (max-height: 699px));
+
 /**
  * DairyDesk palette. Tailwind v4 keeps its config in CSS, so every colour the
  * app uses is registered here as a theme token and reached through the normal
  * utilities (bg-surface, text-ink, border-line, …). Components should use these
  * tokens rather than raw slate/blue/green scales so the scheme stays in one place.
+ *
+ * The scheme is white + very light blue. Blue is spent deliberately — active
+ * navigation, primary actions, icons, selected states — and coral is an accent
+ * for cards that need attention, never a fourth brand colour.
  */
 @theme {
+  /* Typography */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+
   /* Surfaces */
-  --color-canvas: #f5f7fa; /* page background */
+  --color-canvas: #dbe9f8; /* page ground — deeper than the glass, so cards read as translucent */
   --color-surface: #ffffff; /* cards, tables, panels */
-  --color-surface-muted: #f5f7fa; /* table headers, hover rows */
-  --color-nav: #1e293b; /* sidebar / navbar */
-  --color-nav-hover: #334155; /* nav hover, derived one step lighter */
-  --color-nav-ink: #e2e8f0; /* primary text on the dark nav (~12:1 on #1E293B) */
-  --color-nav-muted: #94a3b8; /* borders / secondary marks on the dark nav */
+  --color-surface-muted: #f2f7fd; /* table headers, hover rows — tinted, not grey */
 
   /* Brand / actions */
-  --color-brand: #3b82f6;
-  --color-brand-hover: #2563eb;
+  --color-brand: #1677d2;
+  --color-brand-hover: #0b4f8a;
+  --color-brand-deep: #0b4f8a; /* gradient end, headings on tinted surfaces */
+  --color-brand-soft: #eaf5ff; /* icon chips, selected fills */
 
   /* Text + lines */
-  --color-ink: #1f2937; /* main text */
-  --color-muted: #6b7280; /* secondary text */
-  --color-line: #e5e7eb; /* borders, dividers */
+  --color-ink: #172033; /* main text */
+  --color-muted: #4e5768; /* secondary text — darkened for AA over thin glass */
+  --color-line: #e8eff7; /* borders, dividers — bluer and softer than grey */
 
   /* Status indicators (dots, 3D crates, accents) */
-  --color-fresh: #10b981;
-  --color-ageing: #f59e0b;
-  --color-expired: #ef4444;
-  --color-empty: #9ca3af; /* no stock / neutral */
+  --color-fresh: #35a66f;
+  --color-ageing: #f2a93b;
+  --color-expired: #e86f6f;
+  --color-empty: #98a2b3; /* no stock / neutral */
 
-  /* Status surfaces — light background + readable text for badges and cards */
-  --color-fresh-soft: #ecfdf5;
-  --color-fresh-ink: #065f46;
-  --color-ageing-soft: #fffbeb;
-  --color-ageing-ink: #92400e;
-  --color-expired-soft: #fef2f2;
-  --color-expired-ink: #991b1b;
-  --color-info-soft: #eff6ff;
-  --color-info-ink: #1e40af;
-  --color-neutral-soft: #f3f4f6;
-  --color-neutral-ink: #374151;
+  /* Status surfaces — light background + readable text for badges and cards.
+     Every soft/ink pair below clears 4.5:1. */
+  --color-fresh-soft: #ecfaf3;
+  --color-fresh-ink: #1b7a4e;
+  --color-ageing-soft: #fef6e9;
+  --color-ageing-ink: #8a5a0b;
+  --color-expired-soft: #fdeeee;
+  --color-expired-ink: #a33a3a;
+  --color-info-soft: #eaf5ff;
+  --color-info-ink: #0b4f8a;
+  --color-neutral-soft: #f1f4f8;
+  --color-neutral-ink: #475467;
 
-  /* Store-inventory shell (sidebar layout). Deeper than --color-nav so the
-     full-height rail reads as chrome rather than a second content surface. */
-  --color-rail: #0f1420;
-  --color-rail-soft: #171d2c;
-  --color-rail-hover: #1c2334;
-  --color-rail-ink: #e5e9f0;
-  --color-rail-muted: #8a93a6;
+  /* Coral accent. Used for the "needs attention" KPI wash and one chart series;
+     it is not a status colour and never stands in for danger. */
+  --color-coral: #efa6a1;
+  --color-coral-soft: #fdf1f0;
+  --color-coral-ink: #9d3f38;
+
+  /* Sidebar rail — a vertical blue gradient under a white logo band. */
+  --color-rail: #1677d2;
+  --color-rail-deep: #0b4f8a;
+  --color-rail-ink: #ffffff;
+
+  /* The rail's status panel: a well recessed into the gradient rather than a
+     card floating on it. Its fill is a deep-blue scrim under a white sheen, so
+     it sits *darker* than the rail — which is both what a recess looks like and
+     what keeps the panel readable. The panel now spans a tall stretch of the
+     gradient, and over the lighter blue near the top a plain white-over-blue
+     wash left white text at 4.2:1. The scrim buys that back: white clears 7:1
+     and `--color-rail-dim` clears 4.5:1 everywhere the panel can reach.
+
+     `--color-rail-dim` is 78%, not the 60% an overlay like this usually takes,
+     for the same reason `.modal-panel` re-points `--color-muted`: contrast
+     comes first. Measured against the rendered panel at the top of its range —
+     a tall viewport, where the gradient behind it is lightest — white is
+     6.9:1, 78% is 4.9:1, and 70% and 65% fall to 4.3:1 and 3.9:1. 78% is the
+     dimmest that still clears AA everywhere the panel can reach, so the rest
+     of the hierarchy is carried by size, weight and tracking. */
+  --color-rail-edge: rgba(255, 255, 255, 0.16);
+  --color-rail-rim: rgba(255, 255, 255, 0.32); /* the lit top edge */
+  --color-rail-divider: rgba(255, 255, 255, 0.1); /* section hairlines */
+  --color-rail-dim: rgba(255, 255, 255, 0.78); /* labels, secondary text */
+  --color-rail-ornament: rgba(255, 255, 255, 0.16);
+
+  /* Chart series. This is the reference categorical order with slot 1 re-stepped
+     to the brand blue; it passes the lightness band, chroma floor, adjacent CVD
+     separation and normal-vision floor against a white surface. Assign in order,
+     never cycled — a seventh category folds into "Other". */
+  --color-series-1: #1677d2;
+  --color-series-2: #eb6834;
+  --color-series-3: #1baf7a;
+  --color-series-4: #eda100;
+  --color-series-5: #e87ba4;
+  --color-series-6: #008300;
+  --color-series-other: #98a2b3;
 
   /* Category / severity accents used by Stock Levels and Alerts. */
-  --color-accent-green: #16a34a;
-  --color-accent-blue: #2563eb;
-  --color-accent-amber: #f59e0b;
-  --color-accent-red: #ef4444;
+  --color-accent-green: #35a66f;
+  --color-accent-blue: #1677d2;
+  --color-accent-amber: #f2a93b;
+  --color-accent-red: #e86f6f;
+
+  /* Frosted-glass surface. Translucent enough that the background tint and
+     shapes read through it, opaque enough that body text keeps full contrast. */
+  --color-glass: rgba(255, 255, 255, 0.3);
+  --color-glass-line: rgba(255, 255, 255, 0.75);
+  --color-glass-veil: rgba(255, 255, 255, 0.18); /* table headers on glass */
+
+  /* One soft, blue-tinted elevation for every card in the app. */
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.03), 0 4px 12px -4px rgba(11, 79, 138, 0.05),
+    0 14px 32px -14px rgba(11, 79, 138, 0.11);
+  --shadow-raised: 0 2px 4px rgba(16, 24, 40, 0.04), 0 12px 24px -8px rgba(11, 79, 138, 0.12),
+    0 28px 52px -22px rgba(11, 79, 138, 0.2);
+}
+
+/**
+ * Frosted chrome: blur, depth and the inset highlight that makes a glass edge
+ * catch the light. Background and border colour are deliberately NOT set here —
+ * they come from `bg-*`/`border-*` utilities, so a tinted alert card keeps its
+ * own translucent wash and still gets the same frost.
+ */
+@utility glass-chrome {
+  backdrop-filter: blur(28px) saturate(150%);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+  /* A wide, soft drop for the float; a bright top inset for the light-catch on
+     the glass edge; a faint all-round inset so the pane has thickness. */
+  box-shadow:
+    0 12px 40px rgba(31, 78, 121, 0.14),
+    0 2px 8px rgba(31, 78, 121, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+/**
+ * The rail's status panel. A recess in the blue: a deep-blue scrim under a
+ * white sheen that falls off downwards, a lit top rim, and an inset shadow
+ * raking down from that rim so the slab reads as sunk rather than stacked.
+ *
+ * The scrim is the load-bearing part — see `--color-rail-dim` above. The
+ * fallback leans on it harder still: with no blur to soften the gradient
+ * showing through, the fill alone has to carry the separation.
+ */
+@utility rail-panel {
+  background-color: rgba(4, 28, 54, 0.58);
+  background-image: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.12),
+    rgba(255, 255, 255, 0.07)
+  );
+  border: 1px solid var(--color-rail-edge);
+  border-top-color: var(--color-rail-rim);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 18px 32px -20px rgba(2, 16, 34, 0.75),
+    inset 0 -10px 24px -18px rgba(2, 16, 34, 0.5),
+    0 1px 0 rgba(255, 255, 255, 0.07);
+
+  @supports (backdrop-filter: blur(4px)) or (-webkit-backdrop-filter: blur(4px)) {
+    background-color: rgba(4, 28, 54, 0.5);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+  }
+}
+
+/**
+ * Texture for the panel's elastic middle.
+ *
+ * A repeating rule rather than a single centred mark: this block absorbs
+ * whatever height the column has left, and one mark stranded in 400px of empty
+ * panel reads as a gap, not as ornament. A repeat holds its density at any
+ * height, so the block looks equally deliberate on a laptop and on a tall
+ * desktop. Wide-spaced and very faint, so it reads as an embossed texture —
+ * there are no marks, ticks or labels on it to mistake for a chart.
+ *
+ * The mask fades it out before it reaches the section hairlines above and
+ * below, which would otherwise gain a stack of faint neighbours.
+ */
+@utility rail-texture {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.075) 0 1px,
+    transparent 1px 26px
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 24%,
+    #000 76%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 24%,
+    #000 76%,
+    transparent 100%
+  );
+}
+
+/* A soft brand glow behind the panel's ornament mark, so it sits in its own
+   pool of light rather than colliding with the texture behind it. */
+@utility rail-glow {
+  background-image: radial-gradient(
+    closest-side,
+    rgba(6, 38, 70, 0.34) 0%,
+    rgba(6, 38, 70, 0.18) 46%,
+    rgba(6, 38, 70, 0) 100%
+  );
 }
 
 /* Toasts slide up from the bottom-right corner they live in. */
@@ -85,14 +239,298 @@
     }
   }
 
+  /* The ground the frosted cards sit on. The washes live on `body` itself
+     rather than a ::before, because a z-index:-1 pseudo-element paints behind
+     body's own background colour and would never be seen. `fixed` keeps the
+     shapes still while the page scrolls, so the glass refracts a steady
+     backdrop instead of a moving one. */
   body {
     background-color: var(--color-canvas);
+    /* Sized in percentages, not rem: with `fixed` attachment the positioning
+       area is the viewport, so percentages keep the washes proportional at
+       390px and 1440px alike. Fixed rem radii were roughly viewport-sized on a
+       phone and turned the backdrop blotchy. Kept low-contrast — this is
+       daylight behind glass, not decoration in its own right. */
+    /* Percentage-sized so the atmosphere scales with the viewport. The linear
+       sweep does the heavy lifting and keeps it smooth; the radials add
+       variation without the blotchiness discrete blobs produced. */
+    background-image:
+      radial-gradient(72% 60% at 0% -10%, rgba(255, 255, 255, 0.85), transparent 68%),
+      radial-gradient(60% 52% at 100% 0%, rgba(248, 205, 200, 0.62), transparent 66%),
+      radial-gradient(62% 55% at 46% 112%, rgba(24, 118, 198, 0.34), transparent 68%),
+      radial-gradient(48% 46% at 100% 58%, rgba(108, 219, 222, 0.5), transparent 68%),
+      linear-gradient(155deg, rgba(22, 119, 210, 0.26) 0%, rgba(255, 255, 255, 0.52) 44%, rgba(22, 119, 210, 0.2) 100%);
+    background-attachment: fixed;
+    background-repeat: no-repeat;
     color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
   }
 
-  /* Keyboard focus is visible everywhere, including on the dark navbar. */
+  /* Keyboard focus is visible everywhere, including on the blue rail, where the
+     brand ring would disappear into the background. */
   :focus-visible {
     outline: 2px solid var(--color-brand);
     outline-offset: 2px;
+  }
+
+  .on-rail :focus-visible {
+    outline-color: #ffffff;
+  }
+}
+
+/**
+ * ── Modal glass ──────────────────────────────────────────────────────────
+ *
+ * The dialog is a heavier frost than a card. A card sits on the page washes
+ * and only has to stay readable against them; the dialog sits over a full
+ * list — table rules, badges, thumbnails — so it needs enough body to stop
+ * that detail short of the form text. Hence 70% white here against the 46%
+ * `--color-glass` uses, and its own scrim underneath.
+ */
+@theme {
+  /* Dark wash over the page. Low enough that the list behind still reads as
+     colour and shape, high enough to kill its detail once blurred. */
+  --color-scrim: rgba(12, 22, 38, 0.36);
+
+  --color-modal-glass: rgba(255, 255, 255, 0.7);
+  --color-modal-edge: rgba(255, 255, 255, 0.5);
+  --color-modal-rim: rgba(255, 255, 255, 0.9); /* the lit top edge */
+  --color-modal-divider: rgba(23, 32, 51, 0.1); /* header/footer hairlines */
+
+  /* Fields get their own, lighter fill so small text keeps full contrast
+     rather than fighting whatever the blur happens to leave behind them. */
+  --color-modal-field: rgba(255, 255, 255, 0.78);
+  --color-modal-field-edge: rgba(23, 32, 51, 0.14);
+
+  /* Spring-like: fast out of the gate, long settle. */
+  --ease-glass: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@layer base {
+  :root {
+    --modal-in: 260ms;
+    --modal-out: 180ms;
+    --modal-scrim-in: 200ms;
+  }
+}
+
+/**
+ * The overlay. `data-state` drives the transition rather than a class swap,
+ * so the in and out legs can carry different durations without inline styles.
+ */
+@utility modal-scrim {
+  /* Without backdrop-filter there is no blur to hide the list, so the wash
+     alone has to do it — hence the much darker fallback. */
+  background-color: rgba(12, 22, 38, 0.62);
+  opacity: 1;
+  transition: opacity var(--modal-scrim-in) ease-out;
+
+  @supports (backdrop-filter: blur(4px)) or (-webkit-backdrop-filter: blur(4px)) {
+    background-color: var(--color-scrim);
+    backdrop-filter: blur(12px) saturate(120%);
+    -webkit-backdrop-filter: blur(12px) saturate(120%);
+  }
+
+  &[data-state='closed'] {
+    opacity: 0;
+    transition-duration: var(--modal-out);
+  }
+}
+
+@utility modal-panel {
+  /* Fallback: near-solid, because a 70% panel with nothing blurred behind it
+     would put the list's own text straight through the form. */
+  background-color: rgba(255, 255, 255, 0.97);
+  border: 1px solid var(--color-modal-edge);
+  border-top-color: var(--color-modal-rim);
+  box-shadow:
+    0 2px 8px rgba(9, 21, 38, 0.18),
+    0 36px 72px -28px rgba(9, 21, 38, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+
+  /* `--color-muted` at its page value clears 4.5:1 on a white card but not on
+     a 70% panel over a mid-tone backdrop. Re-pointing the token here darkens
+     every `text-muted` inside the dialog at once — subtitles, field hints —
+     without any of them naming a different colour. */
+  --color-muted: #545e70;
+
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition:
+    opacity var(--modal-in) var(--ease-glass),
+    transform var(--modal-in) var(--ease-glass);
+
+  @supports (backdrop-filter: blur(4px)) or (-webkit-backdrop-filter: blur(4px)) {
+    background-color: var(--color-modal-glass);
+    backdrop-filter: blur(40px) saturate(180%);
+    -webkit-backdrop-filter: blur(40px) saturate(180%);
+  }
+
+  &[data-state='closed'] {
+    opacity: 0;
+    transform: translateY(0.5rem) scale(0.96);
+    transition-duration: var(--modal-out);
+  }
+
+  /* Fields inherit the page's `inputClass`; these two rules retint them for
+     glass by descendant specificity, so no form has to know it is in a modal.
+     Checkboxes and file inputs are left alone — they are drawn by their own
+     peer styling, not by a fill. */
+  & :is(input:not([type='checkbox']):not([type='file']), select, textarea) {
+    background-color: var(--color-modal-field);
+    border-color: var(--color-modal-field-edge);
+  }
+
+  & :is(input:not([type='checkbox']):not([type='file']), select, textarea):focus {
+    background-color: rgba(255, 255, 255, 0.94);
+    border-color: var(--color-brand);
+    box-shadow: 0 0 0 3px rgba(22, 119, 210, 0.3);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transform: none;
+    transition: opacity var(--modal-out) linear;
+
+    &[data-state='closed'] {
+      transform: none;
+    }
+  }
+}
+
+/**
+ * Dark values for the dialog. The app has no dark theme yet, so these are
+ * dormant by design: they hang off an explicit `[data-theme='dark']` rather
+ * than `prefers-color-scheme`, which would otherwise darken the dialog alone
+ * over a light page for anyone whose OS is set dark.
+ */
+@layer base {
+  [data-theme='dark'] {
+    --color-scrim: rgba(6, 10, 18, 0.55);
+    --color-modal-glass: rgba(21, 28, 42, 0.58);
+    --color-modal-edge: rgba(255, 255, 255, 0.12);
+    --color-modal-rim: rgba(255, 255, 255, 0.22);
+    --color-modal-divider: rgba(255, 255, 255, 0.1);
+    --color-modal-field: rgba(255, 255, 255, 0.08);
+    --color-modal-field-edge: rgba(255, 255, 255, 0.16);
+  }
+
+  [data-theme='dark'] .modal-panel {
+    --color-ink: #eef2f8;
+    --color-muted: #b3bdcc;
+  }
+}
+
+/**
+ * ── Login glass ──────────────────────────────────────────────────────────
+ *
+ * The sign-in panel sits directly on the pasture photograph, so it is a
+ * lighter frost than `modal-panel`: that one covers a dense list and needs
+ * body, this one is meant to be seen *through*. 18% white is the whole point —
+ * the cows read through the pane.
+ *
+ * Scoped to the login page rather than folded into `glass-chrome`, because
+ * every other frosted surface in the app sits on the pale canvas washes and
+ * would be far too thin at this opacity.
+ */
+@theme {
+  /* Ink for text sitting on the login pane. Darker than `--color-ink`'s
+     partner `--color-muted`, for the same reason `.modal-panel` re-points that
+     token: a translucent surface has less headroom than a white card. */
+  --color-glass-ink: #101a2b;
+  --color-glass-ink-dim: #1b2437;
+}
+
+@utility login-glass {
+  position: relative;
+  isolation: isolate;
+
+  /* No backdrop-filter means nothing behind the pane is softened, and 18%
+     white over a photograph would put grass through the labels. The fallback
+     trades the frost for legibility; every current browser takes the
+     @supports branch below and gets the real thing. */
+  background-color: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.15);
+
+  @supports (backdrop-filter: blur(4px)) or (-webkit-backdrop-filter: blur(4px)) {
+    background-color: rgba(255, 255, 255, 0.18);
+    /* `contrast()` and `brightness()` are doing legibility work, not styling.
+       Blur alone does not flatten a photograph enough: measured behind this
+       panel the ground still spanned rgb(104,114,131)-rgb(249,249,250), and
+       no text colour clears 4.5:1 across that. Pulling the range toward the
+       light end raises the floor without touching the panel's 18% fill, so
+       the cows stay visible through the glass. */
+    backdrop-filter: blur(28px) saturate(150%) contrast(0.78) brightness(1.2);
+    -webkit-backdrop-filter: blur(28px) saturate(150%) contrast(0.78) brightness(1.2);
+  }
+
+  /* The light-catch: a sheen raking across the pane from the top-left corner,
+     falling off before it reaches the middle so it reads as a reflection on
+     glass rather than as a gradient fill. */
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    background-image: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.28) 0%,
+      rgba(255, 255, 255, 0.08) 42%,
+      rgba(255, 255, 255, 0) 70%
+    );
+    pointer-events: none;
+  }
+
+  /* Lifts the form above the sheen — ::before is positioned and would
+     otherwise paint over static content. */
+  & > * {
+    position: relative;
+    z-index: 1;
+  }
+}
+
+/**
+ * Smaller panes of the same glass, set into the first. Written out in full
+ * rather than layered over `inputClass`: an appended `bg-*` utility does not
+ * reliably beat the one already there (same specificity — stylesheet order
+ * decides), which is the trap ui.jsx's `Card` documents.
+ */
+@utility login-field {
+  width: 100%;
+  border-radius: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--color-glass-ink);
+  background-color: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  /* Same brightening as the panel behind it, so a field does not read as a
+     darker hole punched in the glass. */
+  backdrop-filter: blur(10px) brightness(1.14);
+  -webkit-backdrop-filter: blur(10px) brightness(1.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+
+  &::placeholder {
+    color: rgba(16, 26, 43, 0.62);
+  }
+
+  /* Focus brightens the pane rather than replacing it, so the field still
+     reads as glass while it has the caret. */
+  &:focus {
+    outline: none;
+    background-color: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.9);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.3),
+      0 0 0 3px rgba(22, 119, 210, 0.45);
   }
 }

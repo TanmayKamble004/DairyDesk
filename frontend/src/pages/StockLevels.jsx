@@ -74,12 +74,12 @@ function MovementChart({ rows }) {
     >
       <defs>
         <linearGradient id="inFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#16a34a" stopOpacity="0.20" />
-          <stop offset="100%" stopColor="#16a34a" stopOpacity="0.01" />
+          <stop offset="0%" stopColor="#35a66f" stopOpacity="0.20" />
+          <stop offset="100%" stopColor="#35a66f" stopOpacity="0.01" />
         </linearGradient>
         <linearGradient id="outFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.20" />
-          <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.01" />
+          <stop offset="0%" stopColor="#f2a93b" stopOpacity="0.20" />
+          <stop offset="100%" stopColor="#f2a93b" stopOpacity="0.01" />
         </linearGradient>
       </defs>
 
@@ -100,8 +100,8 @@ function MovementChart({ rows }) {
 
       <path d={outArea} fill="url(#outFill)" />
       <path d={inArea} fill="url(#inFill)" />
-      <path d={outPath} fill="none" stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round" />
-      <path d={inPath} fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" />
+      <path d={outPath} fill="none" stroke="#f2a93b" strokeWidth="2.5" strokeLinecap="round" />
+      <path d={inPath} fill="none" stroke="#35a66f" strokeWidth="2.5" strokeLinecap="round" />
     </svg>
   )
 }
@@ -158,7 +158,7 @@ export default function StockLevels() {
             <h2 className="text-lg font-semibold text-ink">Stock movement trend</h2>
             <p className="text-sm text-muted">Units received against units dispatched.</p>
           </div>
-          <div className="flex gap-1 rounded-lg bg-surface-muted p-1">
+          <div className="flex gap-1 rounded-xl bg-surface-muted p-1">
             {RANGES.map((r) => (
               <button
                 key={r.days}

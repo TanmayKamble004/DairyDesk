@@ -1,12 +1,27 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, apiErrorMessage } from '../api/client'
+import GlassModal from '../components/GlassModal'
 import { useToast } from '../components/Toast'
-import { AddMenu, Card, LoadFailed, PageHeader, Spinner } from '../components/ui'
+import {
+  AddMenu,
+  Card,
+  LoadFailed,
+  PageHeader,
+  Spinner,
+  buttonPrimary,
+  buttonSecondary,
+} from '../components/ui'
 import { fmtDate } from '../data/storeMock'
+import { SupplierFormBody } from './SupplierForm'
+
+// Ties the dialog's pinned submit button to the form inside its scrolling
+// body: they sit in different parts of the panel, so the button reaches the
+// form by id rather than by being inside it.
+const CREATE_FORM_ID = 'create-supplier-form'
 
 // Fixed palette indexed by supplier id, so an avatar keeps its colour.
-const AVATAR_COLORS = ['#2563eb', '#16a34a', '#f59e0b', '#8b5cf6', '#0891b2', '#e11d48']
+const AVATAR_COLORS = ['#1677d2', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300']
 
 const initials = (name) =>
   name
@@ -38,6 +53,27 @@ export default function Suppliers() {
   const [suppliers, setSuppliers] = useState(null)
   const [failed, setFailed] = useState(false)
   const [reloads, setReloads] = useState(0)
+  const [creating, setCreating] = useState(false)
+  // Mirrors the form's own saving flag, so the footer button outside it can
+  // say "Saving…" and lock while the request is in flight.
+  const [savingNew, setSavingNew] = useState(false)
+  // Whether the form has anything in it worth warning about on a stray click.
+  const [dirty, setDirty] = useState(false)
+  const addButtonRef = useRef(null)
+
+  // Cancel is explicit, so it closes without asking — unlike the overlay and
+  // Escape, which route through the dialog's own confirm.
+  const closeCreate = useCallback(() => {
+    setCreating(false)
+    setDirty(false)
+  }, [])
+
+  const handleCreated = useCallback(() => {
+    closeCreate()
+    // The new vendor is not in `suppliers` — one refetch is what makes the
+    // list true again.
+    setReloads((n) => n + 1)
+  }, [closeCreate])
 
   useEffect(() => {
     api
@@ -56,13 +92,48 @@ export default function Suppliers() {
 
   return (
     <>
+      <GlassModal
+        isOpen={creating}
+        onClose={closeCreate}
+        title="New supplier"
+        subtitle="Add a vendor this store buys stock from. Every field is required."
+        returnFocusRef={addButtonRef}
+        confirmClose={dirty}
+        confirmMessage="This supplier has not been saved. Discard it?"
+        footer={
+          <>
+            <button type="button" onClick={closeCreate} className={buttonSecondary}>
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form={CREATE_FORM_ID}
+              disabled={savingNew}
+              className={buttonPrimary}
+            >
+              {savingNew ? 'Saving…' : 'Create supplier'}
+            </button>
+          </>
+        }
+      >
+        <SupplierFormBody
+          formId={CREATE_FORM_ID}
+          layout="modal"
+          onSaved={handleCreated}
+          onCancel={closeCreate}
+          onBusyChange={setSavingNew}
+          onDirtyChange={setDirty}
+        />
+      </GlassModal>
+
       <PageHeader title="Suppliers">
         <AddMenu
           label="Add"
           icon="🚚"
           title="Create supplier"
           description="Add a vendor with contact details and rating."
-          to="/suppliers/new"
+          triggerRef={addButtonRef}
+          onSelect={() => setCreating(true)}
         />
         <p className="w-full text-sm text-muted">Vendors supplying stock to this store.</p>
       </PageHeader>
@@ -93,7 +164,7 @@ export default function Suppliers() {
                 title={`Edit ${s.name}`}
               >
                 <div
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white"
                   style={{ backgroundColor: AVATAR_COLORS[s.id % AVATAR_COLORS.length] }}
                   aria-hidden="true"
                 >

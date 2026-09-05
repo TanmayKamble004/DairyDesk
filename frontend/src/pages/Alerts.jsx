@@ -75,7 +75,7 @@ function ProductCard({ product }) {
   const open = product.open_purchase_order
 
   return (
-    <div className="mt-4 rounded-lg border border-line bg-surface-muted p-4">
+    <div className="mt-4 rounded-xl border border-line bg-surface-muted p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="font-semibold text-ink">{product.name}</div>
@@ -171,7 +171,7 @@ export default function Alerts() {
                 </div>
                 <button
                   onClick={reload}
-                  className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-surface-muted"
+                  className="rounded-xl border border-line px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-surface-muted"
                 >
                   Re-check
                 </button>
@@ -183,7 +183,7 @@ export default function Alerts() {
                   return (
                     <li
                       key={`${a.title}-${i}`}
-                      className={`flex items-start gap-3 rounded-lg border px-4 py-3 ${s.row}`}
+                      className={`flex items-start gap-3 rounded-xl border px-4 py-3 ${s.row}`}
                     >
                       <span className={`mt-0.5 text-lg leading-none ${s.icon}`} aria-hidden="true">
                         {GLYPH[a.icon] ?? '•'}
@@ -254,7 +254,7 @@ export default function Alerts() {
               )}
 
               {searched && matches.length === 0 && (
-                <div className="mt-4 rounded-lg border border-line bg-surface-muted px-4 py-6 text-center">
+                <div className="mt-4 rounded-xl border border-line bg-surface-muted px-4 py-6 text-center">
                   <div className="text-2xl text-empty" aria-hidden="true">
                     ∅
                   </div>
@@ -278,7 +278,7 @@ export default function Alerts() {
                         <button
                           type="button"
                           onClick={() => setQuery(p.sku)}
-                          className="flex w-full items-center justify-between gap-3 rounded-lg border border-line px-3 py-2 text-left transition-colors hover:bg-surface-muted"
+                          className="flex w-full items-center justify-between gap-3 rounded-xl border border-line px-3 py-2 text-left transition-colors hover:bg-surface-muted"
                         >
                           <span className="min-w-0">
                             <span className="block truncate text-sm font-medium text-ink">

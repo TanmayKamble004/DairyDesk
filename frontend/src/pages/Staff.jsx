@@ -16,7 +16,7 @@ import { AddMenu, Badge, Card, LoadFailed, PageHeader, Spinner } from '../compon
 import { fmtDate, fmtDateTime } from '../data/storeMock'
 
 // Fixed palette indexed by id, so a person's avatar keeps its colour.
-const AVATAR_COLORS = ['#2563eb', '#16a34a', '#f59e0b', '#8b5cf6', '#0891b2', '#e11d48']
+const AVATAR_COLORS = ['#1677d2', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300']
 
 const initials = (name) =>
   name
@@ -89,7 +89,7 @@ export default function Staff() {
               title={`Edit ${m.full_name}`}
             >
               <div
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white"
                 style={{ backgroundColor: AVATAR_COLORS[m.id % AVATAR_COLORS.length] }}
                 aria-hidden="true"
               >

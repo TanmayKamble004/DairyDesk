@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, apiErrorMessage } from '../api/client'
+import GlassModal from '../components/GlassModal'
 import { useToast } from '../components/Toast'
 import {
   AddMenu,
@@ -11,9 +12,17 @@ import {
   Spinner,
   Td,
   Th,
+  buttonPrimary,
+  buttonSecondary,
   inputClass,
 } from '../components/ui'
 import { inr, num } from '../data/storeMock'
+import { ProductFormBody } from './ProductForm'
+
+// Ties the dialog's pinned submit button to the form inside its scrolling
+// body: they are in different parts of the panel, so the button reaches the
+// form by id rather than by being inside it.
+const CREATE_FORM_ID = 'create-product-form'
 
 const STATUS_LABEL = {
   in_stock: 'In Stock',
@@ -47,7 +56,7 @@ function StatusPill({ value }) {
 function StatCard({ label, value, unit, icon }) {
   return (
     <Card className="relative overflow-hidden p-5">
-      <div className="mb-3 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-info-soft text-info-ink">
+      <div className="mb-3 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-info-soft text-info-ink">
         {icon}
       </div>
       <div className="text-sm font-medium text-muted">{label}</div>
@@ -67,6 +76,27 @@ export default function Products() {
   const [category, setCategory] = useState('all')
   const [sort, setSort] = useState({ key: 'name', dir: 'asc' })
   const [reloads, setReloads] = useState(0)
+  const [creating, setCreating] = useState(false)
+  // Mirrors the form's own saving flag, so the footer button outside it can
+  // say "Saving…" and lock while the request is in flight.
+  const [savingNew, setSavingNew] = useState(false)
+  // Whether the form has anything in it worth warning about on a stray click.
+  const [dirty, setDirty] = useState(false)
+  const addButtonRef = useRef(null)
+
+  // Cancel is explicit, so it closes without asking — unlike the overlay and
+  // Escape, which route through the dialog's own confirm.
+  const closeCreate = useCallback(() => {
+    setCreating(false)
+    setDirty(false)
+  }, [])
+
+  const handleCreated = useCallback(() => {
+    closeCreate()
+    // The new SKU is not in `products`, and the save may also have raised an
+    // auto-reorder — one refetch is what makes the list true again.
+    setReloads((n) => n + 1)
+  }, [closeCreate])
 
   useEffect(() => {
     api
@@ -138,13 +168,48 @@ export default function Products() {
 
   return (
     <>
+      <GlassModal
+        isOpen={creating}
+        onClose={closeCreate}
+        title="New product"
+        subtitle="Add a SKU to the catalogue. Image and description are optional."
+        returnFocusRef={addButtonRef}
+        confirmClose={dirty}
+        confirmMessage="This product has not been saved. Discard it?"
+        footer={
+          <>
+            <button type="button" onClick={closeCreate} className={buttonSecondary}>
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form={CREATE_FORM_ID}
+              disabled={savingNew}
+              className={buttonPrimary}
+            >
+              {savingNew ? 'Saving…' : 'Create product'}
+            </button>
+          </>
+        }
+      >
+        <ProductFormBody
+          formId={CREATE_FORM_ID}
+          layout="modal"
+          onSaved={handleCreated}
+          onCancel={closeCreate}
+          onBusyChange={setSavingNew}
+          onDirtyChange={setDirty}
+        />
+      </GlassModal>
+
       <PageHeader title="Products">
         <AddMenu
           label="Add"
           icon="📦"
           title="Create product"
           description="Add a new SKU with an image and reorder levels."
-          to="/products/new"
+          triggerRef={addButtonRef}
+          onSelect={() => setCreating(true)}
         />
         <p className="w-full text-sm text-muted">
           Every SKU stocked in this store, with live quantity and value.
@@ -217,11 +282,11 @@ export default function Products() {
                             <img
                               src={p.image}
                               alt=""
-                              className="h-9 w-9 shrink-0 rounded-lg border border-line object-cover"
+                              className="h-9 w-9 shrink-0 rounded-xl border border-line object-cover"
                             />
                           ) : (
                             <span
-                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-line bg-surface-muted text-xs text-empty"
+                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line bg-surface-muted text-xs text-empty"
                               aria-hidden="true"
                             >
                               ▢

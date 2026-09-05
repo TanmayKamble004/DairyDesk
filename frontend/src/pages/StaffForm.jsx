@@ -311,7 +311,7 @@ function AccessSection({ staff, isSelf, onChanged }) {
               type="button"
               onClick={() => setActive(false)}
               disabled={busy}
-              className="rounded-lg bg-expired px-4 py-2 text-sm font-medium text-white hover:bg-expired/90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-xl bg-expired px-4 py-2 text-sm font-medium text-white hover:bg-expired/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {busy ? 'Disabling…' : 'Yes, disable'}
             </button>
@@ -328,7 +328,7 @@ function AccessSection({ staff, isSelf, onChanged }) {
           <button
             type="button"
             onClick={() => setConfirming(true)}
-            className="rounded-lg border border-expired/40 bg-expired-soft px-4 py-2 text-sm font-medium text-expired-ink hover:bg-expired-soft/70"
+            className="rounded-xl border border-expired/40 bg-expired-soft px-4 py-2 text-sm font-medium text-expired-ink hover:bg-expired-soft/70"
           >
             Disable account
           </button>
