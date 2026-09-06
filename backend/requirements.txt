@@ -6,3 +6,7 @@ psycopg[binary]==3.2.3
 # Required by Product.image (Django's ImageField).
 Pillow==11.0.0
 python-dotenv==1.0.1
+# AMQP client for publishing LOW_STOCK events to RabbitMQ. Deliberately raw
+# pika rather than Celery: the exchange, routing key and publisher confirms are
+# the point of the exercise, and Celery would hide all three.
+pika==1.3.2

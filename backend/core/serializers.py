@@ -23,8 +23,9 @@ from .permissions import is_owner
 from .services import (
     deduct_stock_fifo,
     fulfil_purchase_orders,
+    on_stock_changed,
     open_purchase_order,
-    raise_auto_reorders,
+    record_low_stock_events,
 )
 
 # Allowed forward moves; re-submitting the current status is a no-op.
@@ -214,7 +215,7 @@ class ProductSerializer(serializers.ModelSerializer):
         validated_data.pop("clear_image", None)
         product = super().create(validated_data)
         # A product created already at/below its threshold reorders immediately.
-        raise_auto_reorders([product])
+        on_stock_changed([product])
         return product
 
     def update(self, product, validated_data):
@@ -230,7 +231,7 @@ class ProductSerializer(serializers.ModelSerializer):
         product = super().update(product, validated_data)
         # Turning the toggle on, or lowering the threshold onto current stock,
         # should reorder now rather than waiting for the next sale.
-        raise_auto_reorders([product])
+        on_stock_changed([product])
         return product
 
     def to_internal_value(self, data):
@@ -353,6 +354,12 @@ class StockBatchSerializer(serializers.ModelSerializer):
         # Receiving stock is the only signal this app has that a supplier
         # delivered, so it closes any reorder outstanding for that product.
         fulfil_purchase_orders(batch.product)
+        # Restocking is also what re-arms the low-stock alert: without this the
+        # flag would stay stuck True from the first dip and the product could
+        # never alert again. Deliberately not the full on_stock_changed — that
+        # would run auto-reorder immediately after fulfilling the last order and
+        # could raise a fresh one for a delivery that just arrived.
+        record_low_stock_events([batch.product])
         return batch
 
 
@@ -491,8 +498,9 @@ class OrderSerializer(serializers.ModelSerializer):
             )
             # A sale is what pushes stock down onto a threshold, so this is
             # where auto-reorder earns its keep. Inside the transaction, so a
-            # rolled-back order cannot leave a purchase order behind.
-            raise_auto_reorders({item["product"] for item in items_data})
+            # rolled-back order cannot leave a purchase order — or a queued
+            # supplier email — behind.
+            on_stock_changed({item["product"] for item in items_data})
         return order
 
 

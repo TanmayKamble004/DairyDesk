@@ -52,6 +52,7 @@ the full spec.
 - 🔐 **JWT REST API** — Django REST Framework backend secured with JSON Web Tokens
 - 📦 **Expiry-tracked stock batches** — every batch carries purchase price, quantity, and expiry date
 - 🧾 **Orders & invoices** — customer orders through to paid / partial / unpaid invoices
+- 📧 **Automatic supplier alerts** — a separate notification microservice emails the supplier over RabbitMQ when stock falls below its reorder threshold
 
 ---
 
@@ -59,6 +60,8 @@ the full spec.
 
 - **Database:** PostgreSQL 16 (docker-compose)
 - **Backend:** Django + Django REST Framework (JWT auth)
+- **Message broker:** RabbitMQ 3 (topic exchange, durable queues)
+- **Notification service:** standalone Python + pika, its own container and its own database
 - **Frontend:** Vite + React + Tailwind CSS + react-three-fiber (3D shelf)
 
 The whole stack runs in Docker, so runtimes are pinned by the images and identical on
@@ -126,6 +129,7 @@ dairydesk_frontend |   VITE v8.1.3  ready in 585 ms
 | **API** | http://localhost:8000 |
 | **Django admin** | http://localhost:8000/admin |
 | **Health check** | http://localhost:8000/api/health/ |
+| **RabbitMQ management** | http://localhost:15672 (`dairydesk` / `dairydesk`) |
 
 Leave the terminal running, or use `docker compose up -d --build` to run detached.
 Sanity-check the API any time with:
@@ -157,6 +161,117 @@ docker compose exec backend python manage.py seed_demo
 
 Seeding **only happens automatically on an empty database**, so restarting never
 destroys work you've entered. Run the command above when you actually want a reset.
+
+---
+
+## 📧 Supplier low-stock alerts
+
+When a product drops to or below its reorder threshold, DairyDesk emails the
+supplier. The sending is done by a **separate microservice** that shares nothing
+with the Django app but a message queue.
+
+```
+Sale drains stock
+      │
+      ▼
+core.services.on_stock_changed()          ┐
+  ├─ raise_auto_reorders()                │  one database transaction —
+  └─ record_low_stock_events()            │  the event cannot outlive the sale
+       └─ NotificationOutbox row (PENDING)┘
+      │
+      │  after commit
+      ▼
+outbox-relay  ──publish──▶  RabbitMQ  ──▶  notification service  ──▶  📧 supplier
+  (dairydesk_outbox_relay)   (topic)        (dairydesk_notifications)
+```
+
+Six containers, four of which matter here:
+
+| Container | Job |
+|---|---|
+| `dairydesk_backend` | Detects the threshold crossing, writes the event |
+| `dairydesk_rabbitmq` | Carries it |
+| `dairydesk_outbox_relay` | Moves committed events onto the broker |
+| `dairydesk_notifications` | Consumes them and sends the email |
+
+**Why an outbox and not just a publish?** The event is written in the same
+transaction as the sale, so a rolled-back order cannot email a supplier about
+stock that was never sold, and a broker outage cannot fail a sale at the till.
+Events accumulate as `PENDING` and drain when RabbitMQ comes back.
+
+### Trying it
+
+The default email backend is `console`, which prints the message instead of
+sending it — so this works on a fresh clone with no credentials:
+
+```bash
+docker compose logs -f notifications          # in one terminal
+
+# in another — takes a product id or SKU (the seeded SKUs are numeric)
+docker compose exec backend python manage.py emit_low_stock 10834
+```
+
+Or do it for real: sell a product down past its threshold in the UI.
+
+Watch the queue itself at http://localhost:15672 (`dairydesk` / `dairydesk`), or
+inspect the outbox at http://localhost:8000/admin/core/notificationoutbox/.
+
+### Sending real email
+
+Set these in `.env` (see `.env.example`). `EMAIL_HOST_PASSWORD` must be a
+16-character **Gmail App Password**, not the account password — generate one at
+[myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords),
+which needs 2-Step Verification enabled.
+
+```ini
+EMAIL_BACKEND=smtp
+EMAIL_HOST_USER=you@gmail.com
+EMAIL_HOST_PASSWORD=your-16-char-app-password
+DEFAULT_FROM_EMAIL=DairyDesk Inventory <you@gmail.com>
+# Seeded suppliers have invented addresses, so send everything to yourself:
+REDIRECT_ALL_EMAIL_TO=you@gmail.com
+```
+
+Then `docker compose up -d notifications`.
+
+`.env` is gitignored — never commit real credentials.
+
+### Resetting between demo runs
+
+The two things that stop a supplier being emailed twice are exactly the two
+things that get in the way when you want to show the same product alerting three
+times in ten minutes. Both are cleared like this:
+
+```bash
+docker compose exec backend python manage.py reset_notifications
+docker compose exec notifications python -m app.reset
+```
+
+Run **both** — they clear different halves and either one alone leaves the
+product blocked:
+
+| Command | Clears | Without it |
+|---|---|---|
+| `reset_notifications` | `is_low` flags + outbox history | No event is emitted at all — the product is already flagged low |
+| `app.reset` | Cooldowns + processed event ids | The event is published, then suppressed on arrival |
+
+Add `--dry-run` to either to see what's currently blocked without changing
+anything. After a reset, every product can alert again, so you can reassign
+products to any supplier and re-run the whole flow.
+
+### Not spamming the supplier
+
+Three layers, because they fail differently:
+
+1. **Edge-triggered events** — one event when stock crosses the threshold, not
+   one per sale while it stays below. Restocking re-arms it.
+2. **Idempotency** — the service dedupes on `event_id`, so a message redelivered
+   after a crash doesn't send a second email.
+3. **Cooldown** — `COOLDOWN_HOURS` (default 24) of silence per product after a
+   successful send.
+
+Full detail, including failure handling, in
+[notification-service/README.md](notification-service/README.md).
 
 ---
 
@@ -282,5 +397,21 @@ database) and `frontend/.env.example` (`VITE_API_URL`). Nothing is hardcoded.
 `.env` is **optional**: `docker-compose.yml` supplies a default for every variable, so
 the stack runs on a bare clone. Create one only to override something (ports, secret
 key, disabling the demo seed). Values you set there win over the defaults. 
+
+### Timezone
+
+`TZ` (default `Asia/Kolkata`) sets **every container's clock and Django's
+`TIME_ZONE` from one place**, so container logs, the admin and the app never
+disagree about what time it is. Set it once in `.env` to run the stack in
+another zone.
+
+This is not only cosmetic. `USE_TZ` stays on and Postgres still stores
+timestamps in UTC, but `timezone.localdate()` is what expiry status, available
+quantity and a batch's default `received_date` are judged against — so it should
+be the shop's own timezone, not the server's.
+
+The notification service records its cooldown timestamps in UTC internally on
+purpose (arithmetic across a DST boundary shouldn't depend on where the service
+runs) and converts to local time only for display.
  created by -----
  

@@ -5,6 +5,12 @@
 # the host's node_modules is masked by a volume in docker-compose.yml.
 FROM node:22-alpine
 
+# Alpine ships no timezone database, so TZ from docker-compose would silently
+# resolve to UTC and this container's logs would disagree with every other
+# service's. ~2 MB, and the only reason it is an explicit step here while the
+# Debian-based images need nothing.
+RUN apk add --no-cache tzdata
+
 WORKDIR /app
 
 # Lockfile-driven install so every teammate gets identical dependencies.
