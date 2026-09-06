@@ -4,6 +4,8 @@ from django.contrib.auth.admin import UserAdmin
 from .models import (
     Customer,
     Invoice,
+    LowStockAlertState,
+    NotificationOutbox,
     Order,
     OrderItem,
     Product,
@@ -176,3 +178,31 @@ class InvoiceAdmin(admin.ModelAdmin):
     list_display = ["id", "order", "total_amount", "paid_amount", "status"]
     list_filter = ["status"]
     search_fields = ["order__customer__name"]
+
+
+@admin.register(NotificationOutbox)
+class NotificationOutboxAdmin(admin.ModelAdmin):
+    """Read-only window on the event queue — the easiest way to see the pipeline.
+
+    Everything here is written by the app and the relay, so nothing is editable:
+    hand-marking an event as published would drop a supplier's alert with no
+    trace of why.
+    """
+
+    list_display = ["event_type", "event_id", "status", "created_at", "published_at", "attempts"]
+    list_filter = ["status", "event_type"]
+    search_fields = ["event_id"]
+    date_hierarchy = "created_at"
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(LowStockAlertState)
+class LowStockAlertStateAdmin(admin.ModelAdmin):
+    list_display = ["product", "is_low", "last_event_at"]
+    list_filter = ["is_low"]
+    search_fields = ["product__name", "product__sku"]

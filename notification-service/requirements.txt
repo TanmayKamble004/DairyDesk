@@ -1,0 +1,3 @@
+# The whole service. Email is stdlib (smtplib/email), state is stdlib (sqlite3);
+# the only thing it cannot do without is an AMQP client.
+pika==1.3.2

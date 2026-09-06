@@ -119,7 +119,18 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = "UTC"
+# The shop is in Mumbai, and this is what "today" means to it. That matters more
+# than it looks: expiry status, available_quantity and a batch's default
+# received_date all come from timezone.localdate(), so under UTC everything
+# after 05:30 IST was still being judged against yesterday's date.
+#
+# Read from TZ so one variable sets the container clock and Django together —
+# otherwise the logs and the admin can disagree about what time it is.
+#
+# USE_TZ stays True, so this changes how datetimes are *rendered* and what
+# localdate() returns, not how they are stored. Everything in Postgres is still
+# UTC and existing rows are unaffected.
+TIME_ZONE = os.environ.get("TZ", "Asia/Kolkata")
 
 USE_I18N = True
 
@@ -169,3 +180,71 @@ SIMPLE_JWT = {
 
 # CORS — allow the Vite dev server origin.
 CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS", "http://localhost:5173")
+
+
+# ---- Events / notifications ----------------------------------------------
+#
+# This app *produces* LOW_STOCK events; it never sends an email. Delivery is the
+# notification service's job, and the SMTP credentials live there — deliberately
+# not here, so the Django container has no reason to hold them.
+
+RABBITMQ_URL = os.environ.get("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
+EVENTS_EXCHANGE = os.environ.get("EVENTS_EXCHANGE", "dairydesk.events")
+LOW_STOCK_ROUTING_KEY = os.environ.get("LOW_STOCK_ROUTING_KEY", "stock.low_stock")
+
+# The consumer's queue and its dead-letter pair. Named here as well as in the
+# notification service because the *producer* declares and binds them too: a
+# topic exchange silently drops messages that match no binding, so if only the
+# consumer declared the queue, every alert raised before its first start would
+# vanish. Declarations are idempotent, so whoever boots first wins.
+LOW_STOCK_QUEUE = os.environ.get("LOW_STOCK_QUEUE", "notifications.low_stock")
+EVENTS_DLX = os.environ.get("EVENTS_DLX", "dairydesk.dlx")
+LOW_STOCK_DLQ = os.environ.get("LOW_STOCK_DLQ", "notifications.low_stock.dlq")
+
+# Off switch for the outbox writer, for anyone who wants the rest of the app
+# without the notification pipeline. Note it gates *writing* the event, not
+# publishing it — turning the relay off instead leaves events accumulating
+# safely in the outbox, which is usually what you actually want.
+#
+# `seed_demo` needs no such guard: it calls raise_auto_reorders directly rather
+# than on_stock_changed, so reseeding cannot queue sixty alerts.
+EVENTS_ENABLED = env_bool("EVENTS_ENABLED", True)
+
+# Whether a low product must also have `auto_reorder` switched on to alert its
+# supplier. Default False: raising a purchase order is a financial commitment
+# and rightly opt-in, but telling a supplier you are running low is not, and the
+# products nobody has automated are the ones most likely to be forgotten.
+NOTIFY_ONLY_AUTO_REORDER = env_bool("NOTIFY_ONLY_AUTO_REORDER", False)
+
+# How long the relay waits between sweeps of the outbox, and how many times it
+# retries one event before parking it as FAILED.
+OUTBOX_POLL_SECONDS = int(os.environ.get("OUTBOX_POLL_SECONDS", "5"))
+OUTBOX_MAX_ATTEMPTS = int(os.environ.get("OUTBOX_MAX_ATTEMPTS", "10"))
+
+
+# ---- Email (SMTP) ----
+# Credentials come from .env; see .env.example for the Gmail setup.
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+
+# Without credentials, mail is printed to the console rather than sent, so a
+# fresh clone can exercise anything that emails without a mailbox to hand.
+EMAIL_BACKEND = os.environ.get(
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.smtp.EmailBackend"
+    if EMAIL_HOST_USER
+    else "django.core.mail.backends.console.EmailBackend",
+)
+
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
+EMAIL_USE_SSL = env_bool("EMAIL_USE_SSL", False)
+# Without a timeout a firewalled port 587 hangs the request thread indefinitely.
+EMAIL_TIMEOUT = int(os.environ.get("EMAIL_TIMEOUT", "10"))
+
+# Gmail rewrites any From that isn't the authenticated account, so default to it.
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL") or (
+    f"DairyDesk <{EMAIL_HOST_USER}>" if EMAIL_HOST_USER else "webmaster@localhost"
+)
+SERVER_EMAIL = DEFAULT_FROM_EMAIL

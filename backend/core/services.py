@@ -2,11 +2,13 @@
 from collections import defaultdict
 from decimal import Decimal
 
+from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework import serializers
 
-from .models import Invoice, Product, PurchaseOrder
+from . import events
+from .models import Invoice, LowStockAlertState, Product, PurchaseOrder
 
 # Bill numbers look like INV-2026-0001 and restart each calendar year, the way
 # a shop's bill book does.
@@ -97,6 +99,77 @@ def raise_auto_reorders(products=None):
             )
         )
     return created
+
+
+def is_low_stock(product):
+    """Whether this product should be alerting its supplier right now.
+
+    Uses the same `<=` comparison as raise_auto_reorders and Product.stock_status
+    — a product sitting exactly on its threshold already counts as low
+    everywhere else in this app, and a second definition of "low" that disagreed
+    with the badge on the Products page would be a bug waiting to happen.
+
+    Unlike raise_auto_reorders this does *not* require `auto_reorder`: see
+    NOTIFY_ONLY_AUTO_REORDER in settings for the reasoning.
+    """
+    if product.supplier_id is None:
+        return False
+    # A threshold of 0 is the default, and means nobody has set one. Alerting on
+    # it would email a supplier the moment a product sold out for the first time.
+    if product.reorder_threshold <= 0:
+        return False
+    if settings.NOTIFY_ONLY_AUTO_REORDER and not product.auto_reorder:
+        return False
+    return product.available_quantity <= product.reorder_threshold
+
+
+def record_low_stock_events(products):
+    """Write a LOW_STOCK event for each product that has *just* gone low.
+
+    Edge-triggered against LowStockAlertState: crossing the threshold writes one
+    event, staying below it writes nothing, and recovering above it re-arms so
+    the next dip alerts again. Level-triggering here would put an event in the
+    outbox for every sale of an already-low product.
+
+    Runs inside the caller's transaction, so the event and the stock change that
+    caused it commit together or not at all.
+    """
+    if not settings.EVENTS_ENABLED:
+        return []
+
+    queued = []
+    for product in products:
+        state, _ = LowStockAlertState.objects.get_or_create(product=product)
+        low = is_low_stock(product)
+        if low and not state.is_low:
+            queued.append(
+                events.queue_event(
+                    events.LOW_STOCK,
+                    settings.LOW_STOCK_ROUTING_KEY,
+                    events.build_low_stock_payload(product),
+                )
+            )
+            state.is_low = True
+            state.last_event_at = timezone.now()
+            state.save(update_fields=["is_low", "last_event_at"])
+        elif not low and state.is_low:
+            # Restocked. Re-arm, so the next time it runs down the supplier
+            # hears about it.
+            state.is_low = False
+            state.save(update_fields=["is_low"])
+    return queued
+
+
+def on_stock_changed(products):
+    """Everything that must happen when a product's stock or thresholds move.
+
+    One entry point rather than two, because the two reactions have to see the
+    same stock level: if a caller ran only one of them the app would raise
+    purchase orders nobody was told about, or vice versa.
+    """
+    orders = raise_auto_reorders(products)
+    record_low_stock_events(products)
+    return orders
 
 
 def fulfil_purchase_orders(product):

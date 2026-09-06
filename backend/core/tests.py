@@ -19,6 +19,7 @@ from .management.commands import seed_demo
 from .models import (
     Customer,
     Invoice,
+    NotificationOutbox,
     Order,
     OrderItem,
     Product,
@@ -1660,3 +1661,234 @@ class ShelfStatusSummaryTests(APITestCase):
         self.client.force_authenticate(None)
         res = self.client.get(INVENTORY_SUMMARY_URL)
         self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class LowStockEventTests(APITestCase):
+    """The producer half of the notification pipeline: what lands in the outbox.
+
+    Nothing here touches RabbitMQ. The outbox is a database table precisely so
+    that "did this sale queue an alert?" is answerable without a broker running,
+    and these tests are the payoff.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.staff = User.objects.create_user(
+            username="staff-events", password="pw", role=User.Role.STAFF
+        )
+        cls.customer = Customer.objects.create(name="Kadam Sweets", phone="9820011223")
+
+    def setUp(self):
+        # make_supplier sets `email` itself, so it cannot come through **overrides.
+        self.supplier = make_supplier(name="ArpitFarms")
+        self.supplier.email = "orders@arpitfarms.test"
+        self.supplier.save(update_fields=["email"])
+        self.product = Product.objects.create(
+            name="Full Cream Milk",
+            sku="MLK-9001",
+            category="Milk",
+            supplier=self.supplier,
+            unit=Product.Unit.LITRE,
+            selling_price="62.00",
+            reorder_threshold=10,
+            reorder_quantity=50,
+        )
+        self.client.force_authenticate(self.staff)
+
+    def stock(self, quantity, product=None):
+        return StockBatch.objects.create(
+            product=product or self.product,
+            quantity=quantity,
+            purchase_price="55.00",
+            expiry_date=timezone.localdate() + timedelta(days=10),
+        )
+
+    def receive(self, quantity):
+        """Take a delivery through the API, so the restock hook actually runs."""
+        return self.client.post(
+            STOCK_BATCHES_URL,
+            {
+                "product": self.product.id,
+                "quantity": quantity,
+                "purchase_price": "55.00",
+                "expiry_date": (timezone.localdate() + timedelta(days=10)).isoformat(),
+            },
+            format="json",
+        )
+
+    def sell(self, quantity, product=None):
+        return self.client.post(
+            "/api/orders/",
+            {
+                "customer": self.customer.id,
+                "items": [
+                    {"product": (product or self.product).id, "quantity": quantity}
+                ],
+            },
+            format="json",
+        )
+
+    def events(self):
+        return NotificationOutbox.objects.filter(event_type="LOW_STOCK")
+
+    # --- the happy path -----------------------------------------------------
+
+    def test_a_sale_across_the_threshold_queues_one_event(self):
+        self.stock(30)
+        res = self.sell(25)  # leaves 5, below the threshold of 10
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(self.events().count(), 1)
+
+    def test_the_event_carries_everything_the_notifier_needs(self):
+        self.stock(30)
+        self.sell(25)
+
+        row = self.events().get()
+        self.assertEqual(row.status, NotificationOutbox.Status.PENDING)
+        self.assertEqual(row.routing_key, "stock.low_stock")
+
+        payload = row.payload
+        self.assertEqual(payload["event"], "LOW_STOCK")
+        # The consumer dedupes on this, so it has to be in the body itself.
+        self.assertEqual(payload["event_id"], str(row.event_id))
+        self.assertEqual(payload["product"]["name"], "Full Cream Milk")
+        self.assertEqual(payload["product"]["current_stock"], 5)
+        self.assertEqual(payload["product"]["reorder_threshold"], 10)
+        # Supplier contact is snapshotted, not left for the service to look up.
+        self.assertEqual(payload["supplier"]["name"], "ArpitFarms")
+        self.assertEqual(payload["supplier"]["email"], "orders@arpitfarms.test")
+
+    def test_landing_exactly_on_the_threshold_counts_as_low(self):
+        """Matches stock_status and auto-reorder, which both use <=."""
+        self.stock(30)
+        self.sell(20)  # leaves exactly 10
+        self.assertEqual(self.events().count(), 1)
+
+    def test_a_product_created_already_low_alerts_immediately(self):
+        res = self.client.post(
+            PRODUCTS_URL,
+            {
+                "name": "Butter 500g",
+                "sku": "BTR-9004",
+                "category": "Butter",
+                "supplier": self.supplier.id,
+                "unit": Product.Unit.PIECE,
+                "selling_price": "285.00",
+                "reorder_threshold": 6,
+                "reorder_quantity": 24,
+            },
+            format="json",
+        )
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(self.events().count(), 1)
+
+    # --- deduplication ------------------------------------------------------
+
+    def test_staying_below_the_threshold_does_not_queue_more(self):
+        self.stock(30)
+        self.sell(25)  # 5 left — alerts
+        self.sell(1)  # 4 left — already low
+        self.sell(1)  # 3 left — still already low
+        self.assertEqual(self.events().count(), 1)
+
+    def test_restocking_and_dipping_again_alerts_a_second_time(self):
+        self.stock(30)
+        self.sell(25)
+        self.assertEqual(self.events().count(), 1)
+
+        # Supplier delivers; the alert state re-arms.
+        self.assertEqual(self.receive(40).status_code, status.HTTP_201_CREATED)
+        self.product.refresh_from_db()
+        self.assertFalse(self.product.low_stock_state.is_low)
+
+        self.sell(40)  # back down to 5
+        self.assertEqual(self.events().count(), 2)
+
+    def test_a_delivery_that_leaves_it_low_does_not_re_alert(self):
+        """Re-arming is about recovery, not about any delivery at all."""
+        self.stock(30)
+        self.sell(25)  # 5 left
+        self.receive(2)  # 7 — still under the threshold of 10
+        self.product.refresh_from_db()
+        self.assertTrue(self.product.low_stock_state.is_low)
+        self.assertEqual(self.events().count(), 1)
+
+    def test_every_event_gets_its_own_id(self):
+        self.stock(30)
+        self.sell(25)
+        self.receive(40)
+        self.sell(40)
+
+        ids = {row.payload["event_id"] for row in self.events()}
+        self.assertEqual(len(ids), 2)
+
+    # --- when it must stay quiet -------------------------------------------
+
+    def test_a_healthy_sale_queues_nothing(self):
+        self.stock(30)
+        self.sell(5)  # 25 left, well above 10
+        self.assertEqual(self.events().count(), 0)
+
+    def test_a_product_with_no_threshold_never_alerts(self):
+        """0 is the default, and means unset — not 'alert once it runs out'."""
+        loose = Product.objects.create(
+            name="Loose Curd",
+            sku="CRD-9002",
+            category="Curd",
+            supplier=self.supplier,
+            unit=Product.Unit.KG,
+            selling_price="90.00",
+            reorder_threshold=0,
+        )
+        self.stock(10, product=loose)
+        self.sell(10, product=loose)  # sold out entirely
+        self.assertEqual(self.events().count(), 0)
+
+    def test_a_product_with_no_supplier_never_alerts(self):
+        orphan = Product.objects.create(
+            name="Unsourced Paneer",
+            sku="PNR-9003",
+            category="Paneer",
+            supplier=None,
+            unit=Product.Unit.KG,
+            selling_price="320.00",
+            reorder_threshold=5,
+        )
+        self.stock(10, product=orphan)
+        self.sell(8, product=orphan)
+        self.assertEqual(self.events().count(), 0)
+
+    def test_auto_reorder_is_not_required_to_alert(self):
+        """Raising a purchase order is a commitment; telling the supplier is not."""
+        self.assertFalse(self.product.auto_reorder)
+        self.stock(30)
+        self.sell(25)
+        self.assertEqual(self.events().count(), 1)
+        self.assertEqual(PurchaseOrder.objects.count(), 0)
+
+    @override_settings(NOTIFY_ONLY_AUTO_REORDER=True)
+    def test_auto_reorder_can_be_made_a_requirement(self):
+        self.stock(30)
+        self.sell(25)
+        self.assertEqual(self.events().count(), 0)
+
+    @override_settings(EVENTS_ENABLED=False)
+    def test_the_producer_can_be_switched_off(self):
+        self.stock(30)
+        self.sell(25)
+        self.assertEqual(self.events().count(), 0)
+
+    # --- the reason it is an outbox and not a publish -----------------------
+
+    def test_a_rolled_back_sale_leaves_no_event(self):
+        """The whole point of the outbox: the event cannot outlive its cause.
+
+        Selling more than is on the shelf fails inside the same transaction that
+        would have written the event, so the supplier is never told to restock
+        for a sale that did not happen.
+        """
+        self.stock(12)
+        res = self.sell(50)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(self.events().count(), 0)
+        self.assertEqual(Order.objects.count(), 0)

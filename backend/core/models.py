@@ -1,5 +1,6 @@
 """Core data models for DairyDesk (spec section 3, MVP cut)."""
 import math
+import uuid
 from datetime import timedelta
 from decimal import Decimal
 
@@ -335,3 +336,94 @@ class Invoice(models.Model):
 
     def __str__(self):
         return f"{self.number} for order #{self.order_id} ({self.status})"
+
+
+# ---------------------------------------------------------------------------
+# Notification plumbing.
+#
+# Neither of these is a business record — they exist so that "this product went
+# low" reaches the notification service exactly once, across a broker that
+# guarantees only at-least-once and an app that can crash mid-sale. Everything
+# the shop actually trades in is above this line.
+# ---------------------------------------------------------------------------
+
+
+class LowStockAlertState(models.Model):
+    """Whether a product is *already known* to be below its reorder threshold.
+
+    The alert is edge-triggered, not level-triggered: an event is written when
+    this flips False -> True, and never again until stock recovers and flips it
+    back. Without this, every sale of an already-low product would queue another
+    identical email — five sales of the same milk in an afternoon, five alerts.
+
+    Kept in its own table rather than as a field on Product because it is not a
+    property of the product: it is a record of what we have told the supplier.
+    Deleting a product discards it (CASCADE), which is correct — there is
+    nothing left to reorder.
+    """
+
+    product = models.OneToOneField(
+        Product, on_delete=models.CASCADE, related_name="low_stock_state"
+    )
+    is_low = models.BooleanField(default=False)
+    # When the most recent LOW_STOCK event was written for this product. Purely
+    # diagnostic — the cooldown that actually rate-limits the supplier's inbox
+    # lives in the notification service, which is the only thing that knows
+    # whether an email was really sent.
+    last_event_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "low-stock alert state"
+        verbose_name_plural = "low-stock alert states"
+
+    def __str__(self):
+        return f"{self.product.name}: {'low' if self.is_low else 'ok'}"
+
+
+class NotificationOutbox(models.Model):
+    """An event waiting to be published to RabbitMQ.
+
+    The transactional outbox pattern. Rows are written inside the same
+    transaction as the stock change that caused them, so the two can never
+    disagree: a rolled-back sale takes its event with it, and a committed sale
+    always leaves an event behind. Publishing happens afterwards, from
+    `relay_outbox`, where a broker outage costs a retry instead of a failed
+    order.
+
+    Writing straight to RabbitMQ from inside the transaction would break both
+    ways round — a rollback after a successful publish emails the supplier about
+    a sale that never happened, and a broker outage turns into a 500 on the
+    till.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        PUBLISHED = "published", "Published"
+        FAILED = "failed", "Failed"
+
+    # Travels with the payload and is what the notification service dedupes on,
+    # so a redelivered message is recognisable as one it has already handled.
+    event_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    event_type = models.CharField(max_length=50)
+    routing_key = models.CharField(max_length=100)
+    payload = models.JSONField()
+    status = models.CharField(
+        max_length=10, choices=Status.choices, default=Status.PENDING
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    published_at = models.DateTimeField(null=True, blank=True)
+    # Publish attempts so far. Drives the relay's backoff and stops a permanently
+    # unroutable event being retried forever.
+    attempts = models.PositiveIntegerField(default=0)
+    last_error = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+        verbose_name_plural = "notification outbox"
+        indexes = [
+            # The relay's only query: oldest pending first.
+            models.Index(fields=["status", "created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.event_type} {self.event_id} ({self.status})"

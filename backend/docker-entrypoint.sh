@@ -10,7 +10,19 @@ until python -c "import socket, os; socket.create_connection((os.environ.get('DB
   sleep 1
 done
 
-python manage.py migrate --noinput
+# The relay container runs this same image and must not migrate: two containers
+# applying the same migrations at once can interleave into a half-applied
+# schema. The backend owns the schema; the relay only ever reads and updates
+# rows, and waits below for the tables to exist.
+if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
+  python manage.py migrate --noinput
+else
+  echo "RUN_MIGRATIONS=false - waiting for the backend to migrate instead."
+  until python manage.py migrate --check >/dev/null 2>&1; do
+    echo "Waiting for migrations to be applied..."
+    sleep 2
+  done
+fi
 
 # seed_demo clears its tables, so only run it on a genuinely empty database —
 # a restart must never destroy data a teammate entered.

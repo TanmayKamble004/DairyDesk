@@ -159,6 +159,54 @@ Commit at the end of each phase so we have working checkpoints.
 
 ---
 
+## 6b. Notification microservice (added after the demo cut)
+
+Built on top of the MVP, not part of it. Supplier low-stock alerts, delivered by a
+service that is genuinely separate from the Django app.
+
+**Models added to `core`** (nothing existing was changed):
+
+- **LowStockAlertState** — one row per product, `is_low` + `last_event_at`. Makes the
+  alert *edge-triggered*: an event is written when a product crosses the threshold, not
+  once per sale while it sits below it. Restocking re-arms it.
+- **NotificationOutbox** — `event_id`, `event_type`, `routing_key`, `payload` (JSON),
+  `status`, `attempts`, `last_error`. The transactional outbox.
+
+**Detection** lives in `core.services`: `is_low_stock` (supplier present, threshold > 0,
+`available_quantity <= reorder_threshold` — the same `<=` as `stock_status` and
+auto-reorder), `record_low_stock_events`, and `on_stock_changed`, which is what the
+serializers call now instead of `raise_auto_reorders` directly.
+
+**Why an outbox rather than publishing inline.** The event row is written in the same
+transaction as the stock change, so the two cannot disagree — a rolled-back sale takes
+its event with it, and a broker outage costs a retry instead of a failed order. The
+`outbox-relay` container publishes committed rows afterwards.
+
+**Why the supplier's contact details are in the payload** rather than looked up by the
+service: the notification service does not share this database. Reading `Supplier` rows
+would be the shared-database anti-pattern; calling back over HTTP would make
+notifications depend on the main app being up. A snapshot is also the correct answer —
+the address that was on file when the stock ran out.
+
+**Transport.** RabbitMQ, raw `pika`, deliberately not Celery: the exchange, routing key,
+publisher confirms and acks are the point. Topic exchange `dairydesk.events`, routing key
+`stock.low_stock`, durable queue `notifications.low_stock`, dead-lettered to
+`notifications.low_stock.dlq`. Both sides declare the topology identically, because a
+topic exchange silently discards messages matching no binding.
+
+**The service** (`notification-service/`) is plain Python — no Django, no ORM, no
+Postgres driver — with its own SQLite database in a volume for dedup and cooldown state.
+Email only; SMS was dropped (India's TRAI DLT registration makes transactional SMS
+impractical at this scale, and Twilio trial delivery to Indian numbers is unreliable).
+
+**Three layers of deduplication**, because they fail differently: edge-triggered events
+at the producer, `event_id` idempotency at the consumer (AMQP is at-least-once), and a
+24-hour per-product cooldown as the backstop.
+
+Detail in [notification-service/README.md](notification-service/README.md).
+
+---
+
 ## 7. Explicitly OUT of scope for this demo
 
 Do not build these — they're the post-demo (Opus) phase:

@@ -7,6 +7,11 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-dairydesk}
       POSTGRES_USER: ${POSTGRES_USER:-dairydesk}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dairydesk}
+      # Container clocks. Every image already carries tzdata, so this only needs
+      # setting, not installing. Postgres still stores timestamptz in UTC — this
+      # is what its own logs are stamped with.
+      TZ: ${TZ:-Asia/Kolkata}
+      PGTZ: ${TZ:-Asia/Kolkata}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -16,6 +21,31 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  rabbitmq:
+    # -management for the web UI on 15672. Worth the extra layer: being able to
+    # watch a LOW_STOCK message sit in notifications.low_stock is the clearest
+    # possible demonstration that these really are two separate services.
+    image: rabbitmq:3-management-alpine
+    container_name: dairydesk_rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-dairydesk}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-dairydesk}
+      TZ: ${TZ:-Asia/Kolkata}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_UI_PORT:-15672}:15672"
+    volumes:
+      - dairydesk_rabbitmq:/var/lib/rabbitmq
+    healthcheck:
+      # The port opens several seconds before the broker will accept AMQP, so
+      # this checks the broker itself rather than the socket.
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
 
   backend:
     build: ./backend
@@ -38,6 +68,18 @@ services:
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,backend}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
       SEED_DEMO: ${SEED_DEMO:-true}
+      # Sets the container clock *and* Django's TIME_ZONE (settings.py reads the
+      # same variable), so the logs and the admin cannot disagree.
+      TZ: ${TZ:-Asia/Kolkata}
+      # The repo-root .env isn't visible inside this container (only ./backend
+      # is mounted), so SMTP config has to be passed through explicitly.
+      # Unset EMAIL_HOST_USER leaves Django on the console mail backend.
+      EMAIL_HOST: ${EMAIL_HOST:-smtp.gmail.com}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-True}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     volumes:
@@ -46,6 +88,73 @@ services:
     # Keeps `breakpoint()` / pdb usable via `docker attach dairydesk_backend`.
     stdin_open: true
     tty: true
+
+  # The outbox relay: reads events Django committed and publishes them.
+  #
+  # Same image as the backend, different command — it needs the models and the
+  # database, so it is part of the main application, not part of the
+  # notification service. Kept in its own container so that a broker outage
+  # stalls only this loop, while the API keeps taking orders.
+  outbox-relay:
+    build: ./backend
+    container_name: dairydesk_outbox_relay
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-dairydesk}
+      POSTGRES_USER: ${POSTGRES_USER:-dairydesk}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dairydesk}
+      DB_HOST: db
+      DB_PORT: 5432
+      SECRET_KEY: ${SECRET_KEY:-dev-insecure-change-me}
+      DEBUG: ${DEBUG:-True}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-dairydesk}:${RABBITMQ_PASSWORD:-dairydesk}@rabbitmq:5672/
+      OUTBOX_POLL_SECONDS: ${OUTBOX_POLL_SECONDS:-5}
+      # The backend container owns migrations and seeding; two containers racing
+      # to migrate the same database is how you get a half-applied schema. The
+      # entrypoint waits for the backend's migrations instead of applying them.
+      RUN_MIGRATIONS: "false"
+      SEED_DEMO: "false"
+      TZ: ${TZ:-Asia/Kolkata}
+    volumes:
+      - ./backend:/app
+    command: python manage.py relay_outbox
+
+  # The Notification Microservice. Note what is *not* here: no database
+  # credentials, no link to the backend. It knows the broker and it knows how to
+  # send mail; everything else arrives inside the event.
+  notifications:
+    build: ./notification-service
+    container_name: dairydesk_notifications
+    restart: unless-stopped
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-dairydesk}:${RABBITMQ_PASSWORD:-dairydesk}@rabbitmq:5672/
+      STATE_DB_PATH: /data/notifications.db
+      # "console" prints the email and needs no credentials, so the pipeline
+      # demos on a fresh clone. Set EMAIL_BACKEND=smtp in .env to really send.
+      EMAIL_BACKEND: ${EMAIL_BACKEND:-console}
+      EMAIL_HOST: ${EMAIL_HOST:-smtp.gmail.com}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-True}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-}
+      REDIRECT_ALL_EMAIL_TO: ${REDIRECT_ALL_EMAIL_TO:-}
+      COOLDOWN_HOURS: ${COOLDOWN_HOURS:-24}
+      # Log timestamps. The store still records UTC internally (store.py is
+      # explicit about it), so cooldown arithmetic is unaffected by this.
+      TZ: ${TZ:-Asia/Kolkata}
+    volumes:
+      # Dedup and cooldown state. Named volume, not a bind mount: it is the
+      # service's private data and nothing on the host should be editing it.
+      - dairydesk_notifications:/data
 
   frontend:
     build: ./frontend
@@ -58,6 +167,7 @@ services:
       # port — not through the compose network.
       VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
       VITE_USE_POLLING: "1"
+      TZ: ${TZ:-Asia/Kolkata}
       # Only needed if FRONTEND_PORT is remapped, so HMR can reconnect.
       VITE_HMR_CLIENT_PORT: ${VITE_HMR_CLIENT_PORT:-}
     ports:
@@ -71,3 +181,5 @@ services:
 
 volumes:
   dairydesk_pgdata:
+  dairydesk_rabbitmq:
+  dairydesk_notifications:
