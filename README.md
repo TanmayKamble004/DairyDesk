@@ -35,11 +35,15 @@ the full spec.
   - [1. Clone](#1-clone)
   - [2. Start everything](#2-start-everything)
   - [3. Log in](#3-log-in)
+- [🗺️ The pages](#️-the-pages)
+- [📧 Supplier low-stock alerts](#-supplier-low-stock-alerts)
 - [🔁 Running it again next time](#-running-it-again-next-time)
 - [🛠️ Day-to-day development](#️-day-to-day-development)
 - [🐍 Running without Docker](#-running-without-docker)
 - [🩺 Troubleshooting](#-troubleshooting)
 - [⚙️ Configuration](#️-configuration)
+- [🗂️ Also in this repo](#️-also-in-this-repo)
+- [🙏 Credits](#-credits)
 
 </details>
 
@@ -47,11 +51,15 @@ the full spec.
 
 ## ✨ Features
 
-- 🧊 **3D inventory shelf** — stock batches rendered in 3D, colour-coded **fresh / ageing / expired** at a glance
-- 👥 **Role-based access** — separate **owner** and **staff** roles with different permissions
+- 🧊 **3D inventory shelf** — three stacks, one per expiry status, colour-coded **fresh / ageing / expired** and sized by how much stock sits in each. Click a stack to open the batches behind it
+- 📦 **Expiry-tracked stock batches** — every batch carries purchase price, quantity, received and expiry dates. "Ageing" is a share of each batch's own shelf life, so it means the same thing for a 2-day milk sachet as for a 365-day butter block
+- 🗑️ **Recorded disposal** — expired stock is written off, not deleted: quantity goes to zero and the row keeps who signed for it, when, and how much
+- 🥛 **Product catalogue** — 58 seeded Heritage Foods lines across 12 categories, with SKUs, MRP/GST pricing, photos, and per-product reorder thresholds
+- 🚚 **Suppliers & auto-reorder** — four depots, rated and contactable; crossing a product's threshold raises a purchase order to its supplier without anyone asking
+- 🔔 **Alerts** — low, out-of-stock, overstocked and expiring lines in one list, each with the action it needs and whether an order is already open
+- 🧾 **Orders & invoices** — customer orders through to paid / partial / unpaid invoices, numbered `INV-<year>-<seq>` and never reused
+- 👥 **Role-based access** — separate **owner** and **staff** roles; the owner manages staff accounts, and money (invoices, reports, purchase prices) is owner-only
 - 🔐 **JWT REST API** — Django REST Framework backend secured with JSON Web Tokens
-- 📦 **Expiry-tracked stock batches** — every batch carries purchase price, quantity, and expiry date
-- 🧾 **Orders & invoices** — customer orders through to paid / partial / unpaid invoices
 - 📧 **Automatic supplier alerts** — a separate notification microservice emails the supplier over RabbitMQ when stock falls below its reorder threshold
 
 ---
@@ -116,12 +124,22 @@ demo data into the empty database. You're ready when the logs show the seed summ
 followed by Vite's banner:
 
 ```
-dairydesk_backend  | Demo data seeded.
-dairydesk_backend  |   Products:     7
-dairydesk_backend  |   StockBatches: 15
+dairydesk_backend  | Demo data seeded (Heritage Foods catalogue).
+dairydesk_backend  |   Users:        5
+dairydesk_backend  |   Suppliers:    4 Heritage depots
+dairydesk_backend  |   Products:     58 across 12 categories
+dairydesk_backend  |   StockBatches: 92 (65 fresh, 19 ageing, 8 expired)
+dairydesk_backend  |   PurchaseOrders: 4 raised by auto-reorder
+dairydesk_backend  |   Customers:    5
+dairydesk_backend  |   Orders:       5
+dairydesk_backend  |   Invoices:     2
 dairydesk_backend  | Starting development server at http://0.0.0.0:8000/
 dairydesk_frontend |   VITE v8.1.3  ready in 585 ms
 ```
+
+(Abridged — the real output also prints each login under `Users:`. The counts are
+fixed, not random: the seed spreads freshness by catalogue position so that fresh,
+ageing, expired, low and out-of-stock products all exist on every run.)
 
 | What | Where |
 |------|-------|
@@ -161,6 +179,34 @@ docker compose exec backend python manage.py seed_demo
 
 Seeding **only happens automatically on an empty database**, so restarting never
 destroys work you've entered. Run the command above when you actually want a reset.
+
+---
+
+## 🗺️ The pages
+
+| Page | Route | Who | What |
+|---|---|---|---|
+| **Dashboard** | `/` | all | KPI tiles + the 3D shelf |
+| **Products** | `/products` | all | Catalogue with stock status; add / edit, photos, reorder settings |
+| **Inventory** | `/inventory` | all | Per-product available quantity and expiry breakdown; receive stock |
+| **Fresh / Ageing** | `/inventory/fresh`, `/inventory/ageing` | all | The batches behind two of the shelf's stacks, soonest to expire first |
+| **Expired stock** | `/inventory/expired` | all | The third stack, plus the disposal flow and a log of recent write-offs |
+| **Orders** | `/orders` | all | Customer orders, status transitions, auto-invoice on delivery |
+| **Suppliers** | `/suppliers` | all | Depots with ratings and contacts; add / edit |
+| **Alerts** | `/alerts` | all | Everything needing attention, with the action it needs |
+| **Invoices** | `/invoices` | **owner** | Paid / partial / unpaid bills |
+| **Staff** | `/staff` | **owner** | Who can sign in and as what; enable, disable, reset passwords |
+| **Stock levels** | `/stock` | all | Movement chart and category rollup — ⚠️ mock data |
+| **Reports** | `/reports` | **owner** | CSV export of stock / sales summaries — ⚠️ mock data |
+
+Disposal is deliberately **not** owner-gated — whoever clears the shelf is who
+records it. Purchase prices are hidden from staff even on pages they can open.
+
+> ⚠️ **Stock levels** and **Reports** are the two pages with no endpoint behind
+> them yet. They render fixed figures from `frontend/src/data/storeMock.js`
+> (ported from [dairydesk-inventory/](dairydesk-inventory/)) rather than live
+> data, so nothing you enter in the app shows up there. Every other page is on
+> the API.
 
 ---
 
@@ -413,5 +459,28 @@ be the shop's own timezone, not the server's.
 The notification service records its cooldown timestamps in UTC internally on
 purpose (arithmetic across a DST boundary shouldn't depend on where the service
 runs) and converts to local time only for display.
- created by -----
- 
+
+---
+
+## 🗂️ Also in this repo
+
+Not part of the running stack, but tracked here:
+
+| Path | What it is |
+|---|---|
+| [PROJECT_SPEC.md](PROJECT_SPEC.md) | The build spec — data model, API surface, pages |
+| [notification-service/README.md](notification-service/README.md) | Full detail on the alert pipeline, including failure handling |
+| [dairydesk-inventory/](dairydesk-inventory/) | The standalone static store dashboard the Stock levels and Reports pages were ported from. No build step — `node serve.js` and open http://localhost:8080 |
+| [docs/developer-guide.html](docs/developer-guide.html) | Developer guide, web version |
+| `DairyDesk_Developer_Guide.pdf` | The same guide as a PDF |
+| `DairyDesk_Docker_Viva_Guide.pdf` | Walkthrough of the Docker setup for the viva |
+| `DairyDesk_Setup_Guide_Windows.pdf` / `_macOS.pdf` | Step-by-step setup with screenshots, per platform |
+| [diagrams/](diagrams/) | draw.io sources for the report's figures |
+| `Dairy_Business_Management_System_Report_Main.docx` | The project report |
+
+---
+
+## 🙏 Credits
+
+Built by **Tanmay Kamble**, **Prathmesh Humane** and **Arpit Yadav**.
+
