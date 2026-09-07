@@ -144,6 +144,65 @@ class PurchasePriceVisibilityTests(APITestCase):
         self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
+class ReceiveStockExpiryTests(APITestCase):
+    """Incoming stock needs at least a day of shelf life left on it.
+
+    Booking in a batch that expires today (or earlier) puts stock on the shelf
+    that is already ageing or expired and can never be sold.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.staff = User.objects.create_user(
+            username="staff-expiry", password="pw", role=User.Role.STAFF
+        )
+        cls.product = Product.objects.create(
+            name="Toned Milk",
+            sku="MLK-2002",
+            category="Milk",
+            unit=Product.Unit.LITRE,
+            selling_price="54.00",
+        )
+
+    def setUp(self):
+        self.client.force_authenticate(self.staff)
+
+    def payload(self, expiry_offset, received_offset=0):
+        today = timezone.localdate()
+        return {
+            "product": self.product.id,
+            "quantity": 10,
+            "purchase_price": "48.00",
+            "expiry_date": (today + timedelta(days=expiry_offset)).isoformat(),
+            "received_date": (today + timedelta(days=received_offset)).isoformat(),
+        }
+
+    def test_expiry_today_is_rejected(self):
+        res = self.client.post(STOCK_BATCHES_URL, self.payload(0))
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("expiry_date", res.data)
+        self.assertEqual(StockBatch.objects.count(), 0)
+
+    def test_expiry_in_the_past_is_rejected(self):
+        res = self.client.post(STOCK_BATCHES_URL, self.payload(-3))
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("expiry_date", res.data)
+        self.assertEqual(StockBatch.objects.count(), 0)
+
+    def test_expiry_tomorrow_is_accepted(self):
+        """One clear day is the boundary, and it is allowed."""
+        res = self.client.post(STOCK_BATCHES_URL, self.payload(1))
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(StockBatch.objects.count(), 1)
+
+    def test_forward_dated_delivery_cannot_expire_on_arrival(self):
+        """The gap is measured from the delivery too, not only from today."""
+        res = self.client.post(STOCK_BATCHES_URL, self.payload(2, received_offset=2))
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("expiry_date", res.data)
+        self.assertEqual(StockBatch.objects.count(), 0)
+
+
 class DashboardRoleTests(APITestCase):
     """Financial KPIs stay owner-only (regression cover for the shared helper)."""
 
