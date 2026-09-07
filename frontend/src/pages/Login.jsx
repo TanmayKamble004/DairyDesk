@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { apiErrorMessage } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 import { useToast } from '../components/Toast'
@@ -112,6 +112,14 @@ export default function Login() {
             {submitting ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
+        <p className={`mt-5 text-center text-sm text-glass-ink-dim ${TEXT_SHADOW}`}>
+          <Link
+            to="/forgot-password"
+            className="font-semibold text-glass-ink underline underline-offset-2"
+          >
+            Forgotten your password?
+          </Link>
+        </p>
       </div>
     </div>
   )

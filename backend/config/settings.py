@@ -106,8 +106,10 @@ DATABASES = {
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
 
+# No UserAttributeSimilarityValidator: a password is not refused for resembling
+# the person's own name, username or email. Length, common passwords and
+# all-numeric are still checked.
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
@@ -167,6 +169,17 @@ REST_FRAMEWORK = {
         "rest_framework.renderers.JSONRenderer",
         "rest_framework.renderers.BrowsableAPIRenderer",
     ],
+    # Only the two forgotten-password endpoints are throttled, and they opt in
+    # by scope rather than through DEFAULT_THROTTLE_CLASSES — the signed-in API
+    # is a shop counter, not a public service, and rate-limiting it would only
+    # get in the way of a busy morning.
+    #
+    # Five an hour per IP is the number that matters most in this feature: a
+    # security question is a short, guessable secret, so what stops it being
+    # brute-forced is not its own strength but how few attempts anyone gets.
+    "DEFAULT_THROTTLE_RATES": {
+        "password_reset": os.environ.get("PASSWORD_RESET_RATE", "5/hour"),
+    },
 }
 
 # JWT lifetimes are generous because this is a local demo.

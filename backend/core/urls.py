@@ -18,6 +18,18 @@ router.register("invoices", views.InvoiceViewSet, basename="invoice")
 urlpatterns = [
     path("auth/login/", views.LoginView.as_view(), name="token-obtain"),
     path("auth/refresh/", TokenRefreshView.as_view(), name="token-refresh"),
+    # Forgotten-password recovery, in two steps: ask which question, then
+    # answer it. Both are anonymous — whoever needs them cannot sign in.
+    path(
+        "auth/security-question/",
+        views.SecurityQuestionView.as_view(),
+        name="security-question",
+    ),
+    path(
+        "auth/password-reset/",
+        views.SecurityAnswerResetView.as_view(),
+        name="password-reset",
+    ),
     path("inventory/", views.InventoryView.as_view(), name="inventory"),
     # Above the router only in the sense that it is its own path; the shelf's
     # three stacks come from here, the per-product rows from the line above.

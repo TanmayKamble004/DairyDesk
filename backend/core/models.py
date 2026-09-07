@@ -4,6 +4,7 @@ import uuid
 from datetime import timedelta
 from decimal import Decimal
 
+from django.contrib.auth.hashers import check_password, make_password
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
@@ -46,8 +47,51 @@ class User(AbstractUser):
 
     role = models.CharField(max_length=10, choices=Role.choices, default=Role.STAFF)
 
+    # ---- Account recovery ----------------------------------------------
+    #
+    # Blank for everybody who has not been given one, and that blank *is* the
+    # switch: the reset endpoints treat "no question" and "no such user" as the
+    # same answer, so the feature exists only for the accounts an owner has
+    # deliberately set it up on. Today that is one account.
+    security_question = models.CharField(max_length=200, blank=True)
+    # Hashed with the same hasher as `password`, and sized to match it. An
+    # answer that unlocks an account is a credential, not a profile field —
+    # storing it readable would put the account one database peek away.
+    security_answer = models.CharField(max_length=128, blank=True)
+
     def __str__(self):
         return f"{self.username} ({self.role})"
+
+    @property
+    def has_security_question(self):
+        """Both halves, or the question is decoration — see the reset views."""
+        return bool(self.security_question and self.security_answer)
+
+    @staticmethod
+    def normalise_security_answer(answer):
+        """Fold away the differences nobody remembers a year later.
+
+        Case and spacing are exactly what a person cannot reproduce from
+        memory — "Anil Yadav 1994", "anil yadav 1994" and "Anil  Yadav 1994"
+        are the same answer, and a flow that rejects two of the three is a
+        lockout wearing a recovery feature's clothes. `casefold` rather than
+        `lower` so non-ASCII names fold the way their own alphabet expects.
+
+        Applied on the way in *and* on the way out, or the hash written at
+        setup would never match the one computed at reset.
+        """
+        return " ".join(answer.split()).casefold()
+
+    def set_security_answer(self, answer):
+        """Store the answer hashed. Mirrors `set_password` deliberately."""
+        self.security_answer = make_password(self.normalise_security_answer(answer))
+
+    def check_security_answer(self, answer):
+        if not self.security_answer:
+            return False
+        return check_password(
+            self.normalise_security_answer(answer), self.security_answer
+        )
 
 
 class Product(models.Model):

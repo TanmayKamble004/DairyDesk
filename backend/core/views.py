@@ -1,11 +1,15 @@
 """API views (spec section 4)."""
+import logging
+
 from django.db import transaction
 from django.db.models import Case, IntegerField, Value, When
 from django.utils import timezone
 from rest_framework import mixins, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from rest_framework.throttling import AnonRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 
@@ -28,6 +32,8 @@ from .serializers import (
     OrderStatusSerializer,
     ProductSerializer,
     PurchaseOrderSerializer,
+    SecurityAnswerResetSerializer,
+    SecurityQuestionSerializer,
     StaffPasswordSerializer,
     StaffSerializer,
     StockBatchDisposalSerializer,
@@ -36,11 +42,114 @@ from .serializers import (
 )
 from .services import ensure_invoice
 
+logger = logging.getLogger(__name__)
+
 STATUS_SEVERITY = [StockBatch.STATUS_EXPIRED, StockBatch.STATUS_AGEING, StockBatch.STATUS_FRESH]
+
+# One sentence for a wrong answer, an unknown username and a switched-off
+# account alike. Telling them apart would make this endpoint a way to discover
+# which accounts exist, and the person who genuinely forgot their password is
+# no better off for knowing which half they got wrong.
+RESET_REFUSED = (
+    "That username and answer do not match. Check both, or ask an owner to "
+    "reset the password from the Staff page."
+)
 
 
 class LoginView(TokenObtainPairView):
     serializer_class = LoginSerializer
+
+
+class PasswordResetThrottle(AnonRateThrottle):
+    """Rate cap shared by both recovery endpoints.
+
+    These are the only unauthenticated writes in the app, and what they accept
+    is a guess at a credential. Uncapped, the security question is only as
+    strong as how fast someone can POST at it — which is very fast. The rate
+    itself lives in settings under this scope.
+    """
+
+    scope = "password_reset"
+
+
+def recoverable_user(username):
+    """The account this username may recover, or None — there is no third answer.
+
+    Unknown username, no security question configured, and a disabled account
+    all collapse to None so that every caller is forced to treat them alike.
+    `is_active` belongs in that list as much as the question does: switching
+    someone off is how this app ends an account (see StaffViewSet), and a
+    recovery flow that let a disabled account set a fresh password would quietly
+    undo that.
+    """
+    user = User.objects.filter(username=username.strip()).first()
+    if user is None or not user.is_active or not user.has_security_question:
+        return None
+    return user
+
+
+class SecurityQuestionView(APIView):
+    """Step 1 — POST a username, get back the question to answer, or null.
+
+    Anonymous by necessity: the person who needs this cannot sign in. `null`
+    covers every case where recovery is unavailable, so the response reveals
+    nothing about which usernames exist beyond the accounts an owner has
+    deliberately set a question on.
+    """
+
+    # No authentication at all rather than the project defaults: these are for
+    # people holding no credentials, and dropping SessionAuthentication also
+    # drops its CSRF enforcement, which an anonymous POST cannot satisfy.
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_classes = [PasswordResetThrottle]
+
+    def post(self, request):
+        serializer = SecurityQuestionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = recoverable_user(serializer.validated_data["username"])
+        return Response({"security_question": user.security_question if user else None})
+
+
+class SecurityAnswerResetView(APIView):
+    """Step 2 — a correct answer sets a new password.
+
+    The answer is the credential here, so it is checked against a hash, capped
+    by the throttle above, and never echoed back. What this endpoint cannot do
+    is reveal the forgotten password: it is hashed and unreadable, and the only
+    move available is replacing it — the same reasoning as the owner's
+    set-password action.
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_classes = [PasswordResetThrottle]
+
+    def post(self, request):
+        serializer = SecurityAnswerResetSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        user = recoverable_user(data["username"])
+        if user is None:
+            # Hash the answer against nobody before refusing. Skipping this
+            # would return for an unknown username far faster than for a real
+            # account with a wrong answer, and that gap is itself an
+            # account-existence oracle. Django's own ModelBackend does the same.
+            User().set_security_answer(data["answer"])
+            logger.warning("Password reset refused: no recoverable account matched.")
+            raise ValidationError({"detail": RESET_REFUSED})
+
+        if not user.check_security_answer(data["answer"]):
+            logger.warning("Password reset refused for %s: wrong answer.", user.username)
+            raise ValidationError({"detail": RESET_REFUSED})
+
+        user.set_password(data["password"])
+        user.save(update_fields=["password"])
+        # The one line an audit needs: this is the only way a password changes
+        # without an owner signed in to have done it.
+        logger.info("Password reset via security question for %s.", user.username)
+        return Response({"detail": "Password updated. You can sign in with it now."})
 
 
 class StaffViewSet(
@@ -116,7 +225,7 @@ class StaffViewSet(
         replacing it is the only move available.
         """
         staff = self.get_object()
-        serializer = StaffPasswordSerializer(data=request.data, context={"staff": staff})
+        serializer = StaffPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         staff.set_password(serializer.validated_data["password"])
         staff.save(update_fields=["password"])

@@ -85,6 +85,32 @@ export function logout() {
   setAuth(null)
 }
 
+/**
+ * Forgotten-password recovery, in two steps: ask which question guards the
+ * account, then answer it and choose a new password.
+ *
+ * Both go out on bare `axios` rather than the `api` instance, for the same
+ * reason `login` does — the caller holds no token, and the response
+ * interceptor would otherwise treat a refusal as an expired session and try to
+ * refresh a token that was never issued.
+ */
+export async function fetchSecurityQuestion(username) {
+  const res = await axios.post(`${API_URL}/api/auth/security-question/`, { username })
+  // null whenever recovery is unavailable — unknown username, no question set,
+  // or a disabled account. The server does not say which, and neither does the
+  // page that renders this.
+  return res.data.security_question
+}
+
+export async function resetPasswordWithAnswer({ username, answer, password }) {
+  const res = await axios.post(`${API_URL}/api/auth/password-reset/`, {
+    username,
+    answer,
+    password,
+  })
+  return res.data.detail
+}
+
 /** Flatten a DRF error payload into a readable message. */
 export function apiErrorMessage(error) {
   const data = error.response?.data
