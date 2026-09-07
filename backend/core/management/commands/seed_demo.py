@@ -16,6 +16,7 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import NamedTuple
 
+from django.core.management import call_command
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
@@ -341,6 +342,12 @@ class Command(BaseCommand):
         StockBatch.objects.all().delete()
         # Before products and suppliers: PurchaseOrder protects both.
         PurchaseOrder.objects.all().delete()
+        # Deleting a Product does not delete the file its ImageField points at,
+        # so a seed that only dropped the rows would leave MEDIA_ROOT growing a
+        # fresh orphaned copy of every photo on each run.
+        for product in Product.objects.all():
+            if product.image:
+                product.image.delete(save=False)
         Product.objects.all().delete()
         # After products: Product.supplier is PROTECT.
         Supplier.objects.all().delete()
@@ -410,6 +417,12 @@ class Command(BaseCommand):
                 reorder_quantity=item.per_crate * 2,
                 auto_reorder=item.shelf_life_days <= AUTO_REORDER_MAX_SHELF_LIFE_DAYS,
             )
+
+        # Catalogue photos, matched to the products above by SKU. Its own
+        # command so that a database seeded before the photos existed can be
+        # brought up to date without being wiped and rebuilt. stdout is handed
+        # on so it lands wherever the caller pointed this command's own output.
+        call_command("attach_product_images", stdout=self.stdout)
 
         # products_supplied is entered, not counted (see Supplier), so it has to
         # be set from the catalogue or the Suppliers page shows four zeroes.
@@ -490,6 +503,10 @@ class Command(BaseCommand):
             self.stdout.write(f"    {username} / {password} — {first} {last} ({role}{state})")
         self.stdout.write(f"  Suppliers:    {len(SUPPLIERS)} Heritage depots")
         self.stdout.write(f"  Products:     {len(products)} across {len({i.category for i in CATALOGUE})} categories")
+        # Re-read: attach_product_images saved through its own instances, so the
+        # ones in `products` still have the empty image they were created with.
+        with_photos = sum(1 for product in Product.objects.all() if product.image)
+        self.stdout.write(f"    with photos: {with_photos}")
         self.stdout.write(
             f"  StockBatches: {batch_count} "
             f"({statuses[FRESH]} fresh, {statuses[AGEING]} ageing, {statuses[EXPIRED]} expired)"

@@ -180,6 +180,18 @@ docker compose exec backend python manage.py seed_demo
 Seeding **only happens automatically on an empty database**, so restarting never
 destroys work you've entered. Run the command above when you actually want a reset.
 
+The seed also gives each catalogue product its photo, from `backend/core/seed_images/`
+(one JPEG per SKU — see `SOURCES.md` there for where they came from and the terms
+they are used under). To put those on a database that was seeded before the photos
+existed, without wiping it:
+
+```bash
+docker compose exec backend python manage.py attach_product_images
+```
+
+It matches on SKU, so products you added by hand keep whatever photo you gave them —
+add `--force` to overwrite catalogue photos that have since been replaced.
+
 ---
 
 ## 🗺️ The pages

@@ -1288,6 +1288,7 @@ class StaffManagementTests(APITestCase):
         self.assertIsNotNone(row["last_login"])
 
 
+@override_settings(MEDIA_ROOT=MEDIA_TMP)
 class SeedDemoTests(TestCase):
     """seed_demo clears before it seeds, and PROTECT makes the order matter."""
 
@@ -1351,6 +1352,60 @@ class SeedDemoTests(TestCase):
             with self.subTest(sku=item.code):
                 self.assertEqual(str(batch.purchase_price), item.price_after_gst)
                 self.assertEqual(batch.shelf_life_days, item.shelf_life_days)
+
+
+class ProductImageSeedTests(TestCase):
+    """Catalogue photos are shipped per SKU and copied into MEDIA_ROOT."""
+
+    def setUp(self):
+        # A directory of its own per test. TestCase rolls the database back
+        # between tests but nothing rolls MEDIA_ROOT back, so a shared one
+        # would carry the last test's files into this one's count — and a
+        # second save of the same name is uniquified, not overwritten.
+        self.media = tempfile.mkdtemp(prefix="dairydesk-test-media-")
+        self.addCleanup(shutil.rmtree, self.media, True)
+        media_root = override_settings(MEDIA_ROOT=self.media)
+        media_root.enable()
+        self.addCleanup(media_root.disable)
+
+    def test_seeding_gives_every_catalogue_product_a_photo(self):
+        call_command("seed_demo", stdout=StringIO())
+
+        for item in seed_demo.CATALOGUE:
+            with self.subTest(sku=item.code):
+                product = Product.objects.get(sku=item.code)
+                self.assertTrue(product.image, f"{item.name} has no photo")
+
+    def test_products_outside_the_catalogue_are_left_without_a_photo(self):
+        """A hand-entered product has no shipped photo and must not borrow one.
+
+        An empty thumbnail is the honest answer there: nobody has uploaded one.
+        """
+        supplier = make_supplier()
+        product = Product.objects.create(
+            name="Hand-entered line",
+            sku="00000",
+            category="Milk",
+            supplier=supplier,
+            unit=Product.Unit.PIECE,
+            selling_price=Decimal("10.00"),
+        )
+
+        call_command("attach_product_images", stdout=StringIO())
+
+        product.refresh_from_db()
+        self.assertFalse(product.image)
+
+    def test_reattaching_does_not_leave_a_second_copy_on_disk(self):
+        """Django uniquifies a clashing name, so a re-run could pile up files."""
+        call_command("seed_demo", stdout=StringIO())
+        products_dir = os.path.join(self.media, "products")
+        after_seed = sorted(os.listdir(products_dir))
+
+        call_command("attach_product_images", "--force", stdout=StringIO())
+
+        self.assertEqual(sorted(os.listdir(products_dir)), after_seed)
+        self.assertEqual(len(after_seed), len(seed_demo.CATALOGUE))
 
 
 class AgeingWindowTests(TestCase):
