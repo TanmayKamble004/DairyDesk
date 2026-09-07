@@ -4,6 +4,7 @@ import os
 import shutil
 import tempfile
 from datetime import timedelta
+from decimal import Decimal
 from io import StringIO
 
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -738,6 +739,38 @@ class AutoReorderTests(APITestCase):
             self.client.get(PURCHASE_ORDERS_URL).status_code,
             status.HTTP_401_UNAUTHORIZED,
         )
+
+    def test_estimated_value_prices_the_order_at_the_last_purchase_price(self):
+        """Cost basis, not selling price — the Purchases report totals what we pay."""
+        self.stock(30)  # purchase_price 47.00
+        self.sell(25)
+        row = self.client.get(f"{PURCHASE_ORDERS_URL}?product={self.product.id}").data[0]
+        # 50 reordered × 47.00 paid, not × the 54.00 selling price.
+        self.assertEqual(row["quantity"], 50)
+        self.assertEqual(Decimal(row["estimated_value"]), Decimal("2350.00"))
+
+    def test_estimated_value_follows_the_most_recent_batch(self):
+        self.stock(30)
+        self.sell(25)
+        StockBatch.objects.create(
+            product=self.product,
+            quantity=10,
+            purchase_price="52.00",  # the supplier put the price up
+            expiry_date=timezone.localdate() + timedelta(days=10),
+            received_date=timezone.localdate() + timedelta(days=1),
+        )
+        row = self.client.get(f"{PURCHASE_ORDERS_URL}?product={self.product.id}").data[0]
+        self.assertEqual(Decimal(row["estimated_value"]), Decimal("2600.00"))
+
+    def test_estimated_value_is_null_when_the_product_was_never_received(self):
+        """No batch means no cost basis. Null, so a total does not absorb a zero."""
+        order = PurchaseOrder.objects.create(
+            supplier=self.supplier, product=self.product, quantity=50
+        )
+        row = next(
+            r for r in self.client.get(PURCHASE_ORDERS_URL).data if r["id"] == order.id
+        )
+        self.assertIsNone(row["estimated_value"])
 
 
 class InvoiceNumberTests(APITestCase):

@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react'
-import { Card, PageHeader } from '../components/ui'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { api, apiErrorMessage } from '../api/client'
+import { useToast } from '../components/Toast'
+import { Card, LoadFailed, PageHeader, Spinner } from '../components/ui'
 import { MOVEMENT, categoryRollup, num } from '../data/storeMock'
 
 const TONE = {
@@ -107,9 +109,45 @@ function MovementChart({ rows }) {
 }
 
 export default function StockLevels() {
+  const toast = useToast()
   const [days, setDays] = useState(60)
-  const cards = useMemo(() => categoryRollup(), [])
+  const [products, setProducts] = useState(null)
+  const [failed, setFailed] = useState(false)
   const rows = useMemo(() => MOVEMENT.slice(-days), [days])
+
+  const load = useCallback(() => {
+    return api
+      .get('/products/')
+      .then((res) => {
+        setProducts(res.data)
+        setFailed(false)
+      })
+      .catch((err) => {
+        setFailed(true)
+        toast.error(`Could not load stock levels. ${apiErrorMessage(err)}`)
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  /* The rollup is shared with the demo build, so it reads `quantity` and
+     `reorderPoint`. The API names the same two fields differently — and counts
+     `available_quantity` across non-expired batches only, which is the number
+     this page is about. */
+  const cards = useMemo(
+    () =>
+      categoryRollup(
+        (products ?? []).map((p) => ({
+          category: p.category,
+          quantity: p.available_quantity,
+          reorderPoint: p.reorder_threshold,
+        })),
+      ),
+    [products],
+  )
 
   return (
     <>
@@ -118,6 +156,18 @@ export default function StockLevels() {
           Quantity against reorder threshold, by category.
         </p>
       </PageHeader>
+
+      {failed && <LoadFailed what="stock levels" onRetry={load} />}
+      {!failed && !products && <Spinner label="Loading stock levels…" />}
+
+      {products && cards.length === 0 && (
+        <Card className="mb-6 p-10 text-center">
+          <div className="text-sm font-semibold text-ink">No products yet</div>
+          <div className="mt-1 text-xs text-muted">
+            Add a product and receive stock to see levels by category.
+          </div>
+        </Card>
+      )}
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {cards.map((c) => {

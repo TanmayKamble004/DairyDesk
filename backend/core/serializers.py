@@ -413,6 +413,7 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
 
     supplier_name = serializers.CharField(source="supplier.name", read_only=True)
     product_name = serializers.CharField(source="product.name", read_only=True)
+    estimated_value = serializers.SerializerMethodField()
 
     class Meta:
         model = PurchaseOrder
@@ -426,7 +427,30 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
             "status",
             "auto_generated",
             "created_at",
+            "estimated_value",
         ]
+
+    def get_estimated_value(self, order):
+        """What this order is expected to cost, at the last price we paid.
+
+        A purchase order carries no price of its own: the cost is settled only
+        when the stock lands and a batch records its `purchase_price`. The most
+        recent batch is therefore the best estimate available, and `selling_price`
+        is deliberately not the fallback — that is what we charge, not what we pay,
+        and using it would overstate every purchase report.
+
+        Null, not zero, for a product never yet received: no cost basis exists,
+        and a zero would silently drag a total down.
+        """
+        batches = order.product.batches.all()
+        latest = max(
+            batches,
+            key=lambda b: (b.received_date, b.id),
+            default=None,
+        )
+        if latest is None:
+            return None
+        return str(latest.purchase_price * order.quantity)
 
 
 class CustomerSerializer(serializers.ModelSerializer):
