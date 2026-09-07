@@ -1,4 +1,5 @@
 """DRF serializers for the API (spec section 4)."""
+from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth import password_validation
@@ -372,6 +373,36 @@ class StockBatchSerializer(serializers.ModelSerializer):
         if not is_owner(getattr(request, "user", None)):
             data.pop("purchase_price", None)
         return data
+
+    def validate(self, attrs):
+        """A batch must arrive with at least a day of life left on it.
+
+        Dates here are days, not timestamps, so "at least 24 hours" is "expires
+        no earlier than tomorrow". Stock that expires today (or yesterday) is
+        unsellable the moment it is booked in — it would land on the shelf
+        already ageing or expired, and the only thing left to do with it is
+        dispose of it. Measured against both today and the received date, so a
+        forward-dated delivery cannot slip a zero-life batch past the check.
+        """
+        expiry = attrs.get("expiry_date", getattr(self.instance, "expiry_date", None))
+        received = attrs.get(
+            "received_date", getattr(self.instance, "received_date", None)
+        ) or timezone.localdate()
+        if expiry is None:
+            return attrs
+
+        earliest = max(timezone.localdate(), received) + timedelta(days=1)
+        if expiry < earliest:
+            raise serializers.ValidationError(
+                {
+                    "expiry_date": (
+                        "Stock needs at least a day of shelf life when it is "
+                        f"received — the earliest expiry accepted is "
+                        f"{earliest.isoformat()}."
+                    )
+                }
+            )
+        return attrs
 
     def create(self, validated_data):
         batch = super().create(validated_data)

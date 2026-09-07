@@ -15,7 +15,29 @@ import {
   inputClass,
 } from '../components/ui'
 
-const today = () => new Date().toISOString().slice(0, 10)
+// Local calendar date, never UTC: `toISOString()` would shift the day for
+// anyone east of Greenwich (IST midnight is 18:30 the day before in UTC), and
+// the API dates these batches with the server's local day.
+const isoDate = (date) => {
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+const today = () => isoDate(new Date())
+
+const addDays = (day, days) => {
+  const date = new Date(`${day}T00:00:00`)
+  date.setDate(date.getDate() + days)
+  return isoDate(date)
+}
+
+// Stock has to arrive with at least a day of shelf life on it, so the earliest
+// expiry the picker offers is the day after the delivery (never before
+// tomorrow, for a delivery booked in late). The API enforces the same rule.
+const earliestExpiry = (receivedDate) => {
+  const from = receivedDate > today() ? receivedDate : today()
+  return addDays(from, 1)
+}
 
 function ReceiveStockForm({ products, onDone, onCancel }) {
   const [form, setForm] = useState({
@@ -29,6 +51,17 @@ function ReceiveStockForm({ products, onDone, onCancel }) {
   const [submitting, setSubmitting] = useState(false)
 
   const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }))
+
+  // Moving the delivery forward can strand an expiry that was fine before it,
+  // so drop the stale date rather than let the form submit into a 400.
+  const setReceivedDate = (e) =>
+    setForm((f) => {
+      const received_date = e.target.value
+      const stale = f.expiry_date && f.expiry_date < earliestExpiry(received_date)
+      return { ...f, received_date, expiry_date: stale ? '' : f.expiry_date }
+    })
+
+  const minExpiry = earliestExpiry(form.received_date)
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -86,10 +119,12 @@ function ReceiveStockForm({ products, onDone, onCancel }) {
           <input
             type="date"
             className={inputClass}
+            min={minExpiry}
             value={form.expiry_date}
             onChange={set('expiry_date')}
             required
           />
+          <p className="mt-1 text-xs text-muted">Must be {minExpiry} or later.</p>
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-ink">Received date</label>
@@ -97,7 +132,7 @@ function ReceiveStockForm({ products, onDone, onCancel }) {
             type="date"
             className={inputClass}
             value={form.received_date}
-            onChange={set('received_date')}
+            onChange={setReceivedDate}
             required
           />
         </div>
