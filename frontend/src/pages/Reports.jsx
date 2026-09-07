@@ -1,9 +1,22 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { api, apiErrorMessage } from '../api/client'
 import { useToast } from '../components/Toast'
-import { Card, PageHeader, Td, Th, EmptyRow, buttonPrimary, buttonSecondary, inputClass } from '../components/ui'
-import { MONEY_COLS, REPORT_TYPES, buildReport, inr } from '../data/storeMock'
+import {
+  Card,
+  EmptyRow,
+  LoadFailed,
+  PageHeader,
+  Spinner,
+  Td,
+  Th,
+  buttonPrimary,
+  buttonSecondary,
+  inputClass,
+} from '../components/ui'
+import { REPORTS, REPORT_TYPES, buildReport } from '../data/reports'
+import { inr } from '../data/storeMock'
 
-const TYPES = Object.keys(REPORT_TYPES)
+const TYPES = REPORT_TYPES
 
 /** RFC 4180 quoting — a product name with a comma must not split the row. */
 function toCsv(cols, rows) {
@@ -27,17 +40,62 @@ function download(filename, text) {
   URL.revokeObjectURL(url)
 }
 
+/** The last 30 days, which is the range a report is usually wanted for. */
+const defaultRange = () => {
+  const today = new Date()
+  const start = new Date(today)
+  start.setDate(start.getDate() - 30)
+  const iso = (d) => d.toISOString().slice(0, 10)
+  return { from: iso(start), to: iso(today) }
+}
+
 export default function Reports() {
   const toast = useToast()
-  const [from, setFrom] = useState('2026-08-27')
-  const [to, setTo] = useState('2026-09-02')
+  const [range, setRange] = useState(defaultRange)
   const [type, setType] = useState('Stock Summary')
   const [filename, setFilename] = useState('inventory_report')
   const [generatedAt, setGeneratedAt] = useState(null)
+  const [sources, setSources] = useState(null)
+  const [failed, setFailed] = useState(false)
 
-  const cols = REPORT_TYPES[type]
-  const rows = useMemo(() => buildReport(type, from, to), [type, from, to])
-  const money = MONEY_COLS[type] ?? []
+  const { from, to } = range
+  const spec = REPORTS[type]
+  const cols = spec.columns
+  const money = spec.money ?? []
+
+  /* Every report's source is fetched up front rather than per type, so switching
+     the dropdown is instant and the CSV can never export a half-loaded page. */
+  const load = useCallback(() => {
+    return Promise.all([
+      api.get('/products/'),
+      api.get('/orders/'),
+      api.get('/purchase-orders/'),
+      api.get('/stock-batches/'),
+    ])
+      .then(([products, orders, purchaseOrders, batches]) => {
+        setSources({
+          products: products.data,
+          orders: orders.data,
+          purchaseOrders: purchaseOrders.data,
+          batches: batches.data,
+        })
+        setFailed(false)
+      })
+      .catch((err) => {
+        setFailed(true)
+        toast.error(`Could not load report data. ${apiErrorMessage(err)}`)
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const rows = useMemo(
+    () => (sources ? buildReport(type, sources, from, to) : []),
+    [sources, type, from, to],
+  )
 
   return (
     <>
@@ -52,7 +110,7 @@ export default function Reports() {
                 toast.error('Could not export the CSV. Check your browser download settings.')
               }
             }}
-            disabled={rows.length === 0}
+            disabled={!sources || rows.length === 0}
             className={buttonSecondary}
           >
             ⭳ Export CSV
@@ -62,6 +120,7 @@ export default function Reports() {
               setGeneratedAt(new Date())
               toast.success(`${type} report generated — ${rows.length} row(s).`)
             }}
+            disabled={!sources}
             className={buttonPrimary}
           >
             Generate Report
@@ -72,20 +131,41 @@ export default function Reports() {
 
       <Card className="mb-6 p-5">
         <h2 className="text-lg font-semibold text-ink">Report settings</h2>
-        <p className="text-sm text-muted">Pick a range and a report type, then generate.</p>
+        <p className="text-sm text-muted">
+          {spec.dated
+            ? 'Pick a range and a report type, then generate.'
+            : 'Stock Summary is a snapshot of stock on hand now, so the date range does not apply.'}
+        </p>
 
+        {/* The range is disabled rather than hidden on an undated report: the
+            controls keep their place, and a disabled input says "not applicable
+            here" where a silently ignored one would just look broken. */}
         <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <div>
             <label htmlFor="from" className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted">
               From date
             </label>
-            <input id="from" type="date" className={inputClass} value={from} onChange={(e) => setFrom(e.target.value)} />
+            <input
+              id="from"
+              type="date"
+              className={`${inputClass} disabled:cursor-not-allowed disabled:opacity-50`}
+              value={from}
+              disabled={!spec.dated}
+              onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))}
+            />
           </div>
           <div>
             <label htmlFor="to" className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted">
               To date
             </label>
-            <input id="to" type="date" className={inputClass} value={to} onChange={(e) => setTo(e.target.value)} />
+            <input
+              id="to"
+              type="date"
+              className={`${inputClass} disabled:cursor-not-allowed disabled:opacity-50`}
+              value={to}
+              disabled={!spec.dated}
+              onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))}
+            />
           </div>
           <div>
             <label htmlFor="type" className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted">
@@ -113,6 +193,10 @@ export default function Reports() {
         </div>
       </Card>
 
+      {failed && <LoadFailed what="report data" onRetry={load} />}
+      {!failed && !sources && <Spinner label="Loading report data…" />}
+
+      {sources && (
       <Card className="overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line p-5">
           <div>
@@ -149,7 +233,15 @@ export default function Reports() {
                         ci === 0 ? 'font-medium text-ink' : ''
                       }`}
                     >
-                      {money.includes(ci) ? inr(cell) : cell}
+                      {/* A null money cell means the figure is not known —
+                          an unreceived product has no cost to price against.
+                          Shown as —, and left empty in the CSV, so it never
+                          reads as a genuine ₹0. */}
+                      {money.includes(ci)
+                        ? cell === null
+                          ? <span className="text-muted">—</span>
+                          : inr(cell)
+                        : cell}
                     </Td>
                   ))}
                 </tr>
@@ -157,14 +249,19 @@ export default function Reports() {
               {rows.length === 0 && (
                 <EmptyRow
                   colSpan={cols.length}
-                  title="Nothing in this range"
-                  detail="Widen the date range or pick another report type."
+                  title={spec.dated ? 'Nothing in this range' : 'Nothing to report'}
+                  detail={
+                    spec.dated
+                      ? 'Widen the date range or pick another report type.'
+                      : 'Add a product and receive stock to see it here.'
+                  }
                 />
               )}
             </tbody>
           </table>
         </div>
       </Card>
+      )}
     </>
   )
 }

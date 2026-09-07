@@ -300,7 +300,11 @@ class SupplierViewSet(viewsets.ModelViewSet):
 class PurchaseOrderViewSet(viewsets.ReadOnlyModelViewSet):
     """Stock ordered from suppliers. Raised by auto-reorder, so read-only here."""
 
-    queryset = PurchaseOrder.objects.select_related("supplier", "product")
+    # `batches` is prefetched because estimated_value prices each order off the
+    # product's most recent batch — without it that is a query per row.
+    queryset = PurchaseOrder.objects.select_related("supplier", "product").prefetch_related(
+        "product__batches"
+    )
     serializer_class = PurchaseOrderSerializer
 
     def get_queryset(self):
