@@ -192,7 +192,7 @@ function PasswordSection({ staffId, name }) {
           <Field
             name="password"
             label="New password"
-            hint={`At least ${MIN_PASSWORD} characters, and not their own name.`}
+            hint={`At least ${MIN_PASSWORD} characters.`}
             error={errors.password}
           >
             <input
@@ -536,7 +536,7 @@ export default function StaffForm() {
               <Field
                 name="password"
                 label="Password"
-                hint={`At least ${MIN_PASSWORD} characters, and not their own name.`}
+                hint={`At least ${MIN_PASSWORD} characters.`}
                 error={fieldErrors.password}
               >
                 <input

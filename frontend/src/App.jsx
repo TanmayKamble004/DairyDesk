@@ -5,6 +5,7 @@ import { ToastProvider } from './components/Toast'
 import Alerts from './pages/Alerts'
 import Dashboard from './pages/Dashboard'
 import ExpiredStock from './pages/ExpiredStock'
+import ForgotPassword from './pages/ForgotPassword'
 import Inventory from './pages/Inventory'
 import Invoices from './pages/Invoices'
 import Login from './pages/Login'
@@ -45,6 +46,9 @@ export default function App() {
         <ToastProvider>
           <Routes>
             <Route path="/login" element={<Login />} />
+            {/* Outside RequireAuth, necessarily — the whole point is that the
+                person using it cannot sign in. */}
+            <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route
               element={
                 <RequireAuth>

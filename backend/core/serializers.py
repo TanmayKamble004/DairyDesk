@@ -46,14 +46,10 @@ class LoginSerializer(TokenObtainPairSerializer):
         return data
 
 
-def check_password_strength(password, user):
-    """Run Django's configured password validators and report a 400, not a 500.
-
-    `user` is what the similarity validator compares against, so a password
-    that is just the person's own username is caught before it is stored.
-    """
+def check_password_strength(password):
+    """Run Django's configured password validators and report a 400, not a 500."""
     try:
-        password_validation.validate_password(password, user)
+        password_validation.validate_password(password)
     except DjangoValidationError as error:
         raise serializers.ValidationError({"password": list(error.messages)}) from error
 
@@ -119,12 +115,7 @@ class StaffSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {"password": "Set a password — it is what this person signs in with."}
                 )
-            # Unsaved, purely so the similarity validator has a name and email
-            # to compare the password against.
-            check_password_strength(password, User(**{
-                field: attrs.get(field, "")
-                for field in ["username", "first_name", "last_name", "email"]
-            }))
+            check_password_strength(password)
         elif password:
             raise serializers.ValidationError(
                 {"password": "Use the reset-password action to change an existing password."}
@@ -150,7 +141,40 @@ class StaffPasswordSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
     def validate(self, attrs):
-        check_password_strength(attrs["password"], self.context["staff"])
+        check_password_strength(attrs["password"])
+        return attrs
+
+
+class SecurityQuestionSerializer(serializers.Serializer):
+    """Step 1 of forgotten-password recovery — which question to ask.
+
+    Username only. Whether that username exists, and whether it has a question
+    set, is deliberately not decided here: the view answers both cases
+    identically, so the endpoint cannot be used to enumerate accounts.
+    """
+
+    username = serializers.CharField(max_length=150)
+
+
+class SecurityAnswerResetSerializer(serializers.Serializer):
+    """Step 2 — the answer, and the password that replaces the forgotten one.
+
+    Note what is *not* a field here: the current password. The whole premise is
+    that nobody has it. And note what never comes back out — a correct answer
+    buys the right to set a *new* password, it does not reveal the old one,
+    which is hashed and unreadable in any case.
+
+    `password` rather than `new_password` to match StaffPasswordSerializer
+    above; both endpoints do the same thing to the same column, and
+    `check_password_strength` reports its errors under that name.
+    """
+
+    username = serializers.CharField(max_length=150)
+    answer = serializers.CharField(max_length=200)
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        check_password_strength(attrs["password"])
         return attrs
 
 

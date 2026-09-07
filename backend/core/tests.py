@@ -7,8 +7,10 @@ from datetime import timedelta
 from decimal import Decimal
 from io import StringIO
 
+from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.db import IntegrityError, transaction
 from django.test import TestCase, override_settings
 from django.utils import timezone
@@ -41,6 +43,8 @@ PURCHASE_ORDERS_URL = "/api/purchase-orders/"
 CUSTOMERS_URL = "/api/customers/"
 STAFF_URL = "/api/staff/"
 LOGIN_URL = "/api/auth/login/"
+SECURITY_QUESTION_URL = "/api/auth/security-question/"
+PASSWORD_RESET_URL = "/api/auth/password-reset/"
 
 
 def make_supplier(name="Sunrise Dairy Co.", **overrides):
@@ -1057,11 +1061,11 @@ class StaffManagementTests(APITestCase):
         self.assertIn("password", res.data)
         self.assertFalse(User.objects.filter(username="amit").exists())
 
-    def test_a_password_that_is_just_the_username_is_refused(self):
-        """The similarity validator needs the user it is comparing against."""
-        res = self.client.post(STAFF_URL, self.payload(password="amit"))
-        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("password", res.data)
+    def test_a_password_built_from_their_own_name_is_allowed(self):
+        """No similarity rule: only length, common words and all-numeric apply."""
+        res = self.client.post(STAFF_URL, self.payload(password="amit-shirke"))
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(User.objects.get(username="amit").check_password("amit-shirke"))
 
     def test_a_member_without_a_password_is_refused(self):
         payload = self.payload()
@@ -1192,7 +1196,7 @@ class StaffManagementTests(APITestCase):
         self.assertFalse(self.member.check_password("Kolhapur#2026"))
 
     def test_a_weak_reset_password_is_refused(self):
-        res = self.client.post(f"{self.member_url}set-password/", {"password": "sneha"})
+        res = self.client.post(f"{self.member_url}set-password/", {"password": "abc123"})
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
         self.member.refresh_from_db()
         self.assertTrue(self.member.check_password("Kolhapur#2026"))
@@ -1925,3 +1929,178 @@ class LowStockEventTests(APITestCase):
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(self.events().count(), 0)
         self.assertEqual(Order.objects.count(), 0)
+
+
+class SecurityQuestionRecoveryTests(APITestCase):
+    """Forgotten-password recovery, for the accounts that have a question set.
+
+    One account has one here, which is how it is deployed: the question is
+    opt-in per user, and everybody without one goes to an owner instead — the
+    set-password flow that already exists on the Staff page.
+    """
+
+    QUESTION = "Whose name and birth year are combined to create the password"
+    ANSWER = "Anil Yadav 1994"
+    NEW_PASSWORD = "Th1stle-Marsh-9042"
+
+    def setUp(self):
+        # DRF keeps throttle history in the cache, and LocMemCache outlives a
+        # single test method — without this, the sixth request of the *class*
+        # would 429 rather than the sixth of the test.
+        cache.clear()
+        self.anil = User.objects.create_user(
+            username="anil", password="anilyadav94", role=User.Role.OWNER
+        )
+        self.anil.security_question = self.QUESTION
+        self.anil.set_security_answer(self.ANSWER)
+        self.anil.save()
+        self.sneha = User.objects.create_user(
+            username="sneha", password="pw", role=User.Role.STAFF
+        )
+
+    def ask(self, username):
+        return self.client.post(SECURITY_QUESTION_URL, {"username": username})
+
+    def reset(self, **overrides):
+        payload = {
+            "username": "anil",
+            "answer": self.ANSWER,
+            "password": self.NEW_PASSWORD,
+        }
+        payload.update(overrides)
+        return self.client.post(PASSWORD_RESET_URL, payload)
+
+    # --- step 1: which question ------------------------------------------
+
+    def test_a_configured_account_gets_its_question(self):
+        res = self.ask("anil")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data["security_question"], self.QUESTION)
+
+    def test_an_account_without_a_question_gets_null(self):
+        self.assertIsNone(self.ask("sneha").data["security_question"])
+
+    def test_an_unknown_username_looks_identical(self):
+        """The point of the null: no way to sort real accounts from typos."""
+        known, unknown = self.ask("sneha"), self.ask("nobody")
+        self.assertEqual(known.status_code, unknown.status_code)
+        self.assertEqual(known.data, unknown.data)
+
+    def test_a_disabled_account_cannot_recover(self):
+        """`is_active` is how this app ends an account; recovery must not undo it."""
+        self.anil.is_active = False
+        self.anil.save(update_fields=["is_active"])
+        self.assertIsNone(self.ask("anil").data["security_question"])
+
+    def test_the_stored_answer_never_leaves_the_server(self):
+        self.assertNotIn("security_answer", self.ask("anil").data)
+
+    # --- step 2: answering it --------------------------------------------
+
+    def test_the_right_answer_sets_a_new_password(self):
+        res = self.reset()
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.anil.refresh_from_db()
+        self.assertTrue(self.anil.check_password(self.NEW_PASSWORD))
+
+    def test_the_forgotten_password_stops_working(self):
+        self.reset()
+        self.anil.refresh_from_db()
+        self.assertFalse(self.anil.check_password("anilyadav94"))
+
+    def test_the_new_password_signs_in(self):
+        self.reset()
+        res = self.client.post(
+            LOGIN_URL, {"username": "anil", "password": self.NEW_PASSWORD}
+        )
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+    def test_case_and_spacing_are_forgiven(self):
+        """Nobody reproduces their own punctuation a year later."""
+        self.assertEqual(
+            self.reset(answer="  anil   YADAV 1994 ").status_code, status.HTTP_200_OK
+        )
+
+    def test_a_wrong_answer_changes_nothing(self):
+        res = self.reset(answer="Anil Yadav 1995")
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.anil.refresh_from_db()
+        self.assertTrue(self.anil.check_password("anilyadav94"))
+
+    def test_a_wrong_answer_and_an_unknown_user_read_alike(self):
+        wrong, unknown = self.reset(answer="not it"), self.reset(username="nobody")
+        self.assertEqual(wrong.status_code, unknown.status_code)
+        self.assertEqual(str(wrong.data["detail"]), str(unknown.data["detail"]))
+
+    def test_an_account_without_a_question_cannot_be_reset(self):
+        res = self.reset(username="sneha", answer="anything")
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.sneha.refresh_from_db()
+        self.assertTrue(self.sneha.check_password("pw"))
+
+    def test_a_weak_new_password_is_rejected(self):
+        res = self.reset(password="x")
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.anil.refresh_from_db()
+        self.assertTrue(self.anil.check_password("anilyadav94"))
+
+    # --- how the answer is kept, and how few guesses it allows ------------
+
+    def test_the_answer_is_hashed(self):
+        self.assertNotEqual(self.anil.security_answer, self.ANSWER)
+        self.assertNotIn("1994", self.anil.security_answer)
+        # Every Django hasher writes algorithm$…$hash.
+        self.assertIn("$", self.anil.security_answer)
+        self.assertTrue(self.anil.check_security_answer(self.ANSWER))
+
+    def test_guessing_is_throttled(self):
+        """The cap, not the answer's own strength, is what resists a guesser."""
+        for _ in range(5):
+            self.reset(answer="wrong")
+        self.assertEqual(
+            self.reset(answer="wrong").status_code, status.HTTP_429_TOO_MANY_REQUESTS
+        )
+
+
+class SetSecurityQuestionCommandTests(TestCase):
+    """`manage.py set_security_question` — the only way an answer is ever set.
+
+    Deliberately not a field on the Staff form: the answer is a credential, so
+    it is typed at a prompt and hashed, never committed and never rendered.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="anil", password="anilyadav94", role=User.Role.OWNER
+        )
+
+    def run_command(self, *args, **kwargs):
+        out = StringIO()
+        call_command("set_security_question", *args, stdout=out, **kwargs)
+        return out.getvalue()
+
+    def test_it_stores_a_hashed_answer(self):
+        self.run_command("anil", answer="Anil Yadav 1994")
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.has_security_question)
+        self.assertTrue(self.user.check_security_answer("anil yadav 1994"))
+        self.assertNotIn("1994", self.user.security_answer)
+
+    def test_it_defaults_to_the_deployed_question(self):
+        self.run_command("anil", answer="Anil Yadav 1994")
+        self.user.refresh_from_db()
+        self.assertIn("birth year", self.user.security_question)
+
+    def test_clear_switches_recovery_off(self):
+        self.run_command("anil", answer="Anil Yadav 1994")
+        self.run_command("anil", clear=True)
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.has_security_question)
+
+    def test_an_unknown_username_is_an_error(self):
+        with self.assertRaises(CommandError):
+            self.run_command("nobody", answer="x")
+
+    def test_a_blank_answer_is_refused(self):
+        with self.assertRaises(CommandError):
+            self.run_command("anil", answer="   ")
