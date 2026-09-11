@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, apiErrorMessage } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
+import ReceivePaymentDialog from '../components/ReceivePaymentDialog'
 import { useToast } from '../components/Toast'
 import {
   Badge,
@@ -16,10 +17,9 @@ import {
   buttonSecondary,
   inputClass,
 } from '../components/ui'
+import { formatINR, toPaise } from '../data/money'
 
 const NEXT_STATUS = { pending: 'processed', processed: 'delivered' }
-const formatINR = (value) =>
-  `₹${Number(value).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
 
 // Sentinel option value. A buyer nobody has served before turns up mid-order,
 // so the dropdown that names them is also where they get created.
@@ -210,6 +210,23 @@ function NewOrderForm({
 
   const selected = customers.find((c) => String(c.id) === String(customer))
 
+  // Running total of the order being built, in paise. Integer paise rather
+  // than rupee floats: prices arrive from the API as exact two-decimal strings
+  // ("24.21"), and summing them as floats is how a form ends up showing a
+  // total a rupee off the invoice it turns into.
+  //
+  // Priced from `selling_price`, which is the same field the API snapshots
+  // onto each line at create time — so this matches the order that gets
+  // written unless someone edits a price between this page loading and the
+  // order being submitted. Lines that are not yet fillable (no product, blank
+  // or nonsensical quantity) contribute nothing instead of poisoning the sum.
+  const totalPaise = items.reduce((sum, item) => {
+    const product = products.find((p) => String(p.id) === String(item.product))
+    const quantity = Number(item.quantity)
+    if (!product || !Number.isFinite(quantity) || quantity < 1) return sum
+    return sum + Math.round(Number(product.selling_price) * 100 * quantity)
+  }, 0)
+
   function updateItem(index, field, value) {
     setItems((prev) => prev.map((item, i) => (i === index ? { ...item, [field]: value } : item)))
   }
@@ -346,6 +363,13 @@ function NewOrderForm({
           >
             + Add item
           </button>
+
+          <div className="mt-3 flex max-w-xl items-baseline justify-between border-t border-line pt-3">
+            <span className="text-sm font-medium text-ink">Grand total</span>
+            <span className="text-lg font-semibold tabular-nums text-ink">
+              {formatINR(totalPaise / 100)}
+            </span>
+          </div>
         </div>
 
         <div className="flex gap-2">
@@ -361,10 +385,38 @@ function NewOrderForm({
   )
 }
 
-function OrderRow({ order, isOwner, onTransition }) {
+/**
+ * What has been collected against this order.
+ *
+ * Nothing to show until the order is delivered: that is when the bill is
+ * raised, and before it there is no amount to have received. The figures are
+ * this one sale's own — the Invoices page, which totals every customer's
+ * balance, stays owner-only.
+ */
+function PaymentCell({ order }) {
+  if (!order.has_invoice) {
+    return <span className="text-muted">Not billed yet</span>
+  }
+  return (
+    <div className="space-y-1">
+      <Badge value={order.payment_status} />
+      <div className="text-xs tabular-nums text-muted">
+        {formatINR(order.amount_paid)} of {formatINR(order.total)} received
+      </div>
+      {toPaise(order.amount_due) > 0 && (
+        <div className="text-xs font-semibold tabular-nums text-coral-ink">
+          {formatINR(order.amount_due)} due
+        </div>
+      )}
+    </div>
+  )
+}
+
+function OrderRow({ order, isOwner, onTransition, onReceive }) {
   const toast = useToast()
   const [busy, setBusy] = useState(false)
   const next = NEXT_STATUS[order.status]
+  const owes = order.has_invoice && toPaise(order.amount_due) > 0
 
   async function transition() {
     setBusy(true)
@@ -402,14 +454,28 @@ function OrderRow({ order, isOwner, onTransition }) {
           <Badge value={order.status} />
         </Td>
         <Td>
-          {next && (
-            <button onClick={transition} disabled={busy} className={`${buttonSecondary} text-xs`}>
-              {busy ? 'Updating…' : `Mark ${next}`}
-            </button>
-          )}
-          {order.status === 'delivered' &&
-            order.has_invoice &&
-            (isOwner ? (
+          <PaymentCell order={order} />
+        </Td>
+        <Td>
+          <div className="flex flex-wrap items-center gap-2">
+            {next && (
+              <button onClick={transition} disabled={busy} className={`${buttonSecondary} text-xs`}>
+                {busy ? 'Updating…' : `Mark ${next}`}
+              </button>
+            )}
+            {/* Open to staff as well as the owner: whoever hands the goods
+                over is who is handed the cash, and sending them to find the
+                owner first is how a payment ends up unrecorded. */}
+            {owes && (
+              <button
+                type="button"
+                onClick={(e) => onReceive(order, e.currentTarget)}
+                className={`${buttonPrimary} whitespace-nowrap px-3 py-2 text-xs`}
+              >
+                Receive payment
+              </button>
+            )}
+            {order.status === 'delivered' && order.has_invoice && isOwner && (
               <Link
                 to="/invoices"
                 state={{ highlightOrder: order.id }}
@@ -417,9 +483,8 @@ function OrderRow({ order, isOwner, onTransition }) {
               >
                 View invoice →
               </Link>
-            ) : (
-              <span className="text-sm text-muted">Invoice generated</span>
-            ))}
+            )}
+          </div>
         </Td>
       </tr>
     </>
@@ -434,6 +499,16 @@ export default function Orders() {
   const [products, setProducts] = useState([])
   const [failed, setFailed] = useState(false)
   const [showForm, setShowForm] = useState(false)
+  const [paying, setPaying] = useState(null)
+  // Focus goes back to the row's own button, which is the element that
+  // disappears the moment the bill is settled — hence a ref rather than the
+  // dialog's "whatever was focused when it opened".
+  const triggerRef = useRef(null)
+  // The order the dialog is showing, held past the point `paying` is cleared:
+  // the panel animates out over 180ms and needs something to render until it
+  // has. Without this the dialog blanks its own heading as it closes.
+  const shown = useRef(null)
+  if (paying) shown.current = paying
 
   const load = useCallback(() => {
     return Promise.all([api.get('/orders/'), api.get('/customers/'), api.get('/products/')])
@@ -469,6 +544,19 @@ export default function Orders() {
 
   const removeCustomer = useCallback((id) => {
     setCustomers((prev) => prev.filter((c) => c.id !== id))
+  }, [])
+
+  const openPayment = useCallback((order, trigger) => {
+    triggerRef.current = trigger
+    setPaying(order)
+  }, [])
+
+  // Patch the one row rather than reloading the page's three lists: the API
+  // has just returned the updated order, and a `load()` would rebuild an open
+  // new-order form and lose the items already picked.
+  const applyPayment = useCallback((updated) => {
+    setOrders((prev) => (prev ?? []).map((o) => (o.id === updated.id ? updated : o)))
+    setPaying(null)
   }, [])
 
   return (
@@ -511,6 +599,7 @@ export default function Orders() {
                 <Th>Total</Th>
                 <Th>Created</Th>
                 <Th>Status</Th>
+                <Th>Payment</Th>
                 <Th>Actions</Th>
               </tr>
             </thead>
@@ -521,11 +610,12 @@ export default function Orders() {
                   order={order}
                   isOwner={user?.role === 'owner'}
                   onTransition={handleTransition}
+                  onReceive={openPayment}
                 />
               ))}
               {orders.length === 0 && (
                 <EmptyRow
-                  colSpan={7}
+                  colSpan={8}
                   title="No orders yet"
                   detail="Create an order to see it listed here."
                 />
@@ -533,6 +623,23 @@ export default function Orders() {
             </tbody>
           </table>
         </Card>
+      )}
+
+      {shown.current && (
+        <ReceivePaymentDialog
+          bill={{
+            number: shown.current.invoice_number ?? `Order #${shown.current.id}`,
+            customerName: shown.current.customer_name,
+            total: shown.current.total,
+            paid: shown.current.amount_paid,
+            due: shown.current.amount_due,
+          }}
+          url={`/orders/${shown.current.id}/record-payment/`}
+          isOpen={paying !== null}
+          returnFocusRef={triggerRef}
+          onClose={() => setPaying(null)}
+          onRecorded={applyPayment}
+        />
       )}
     </div>
   )

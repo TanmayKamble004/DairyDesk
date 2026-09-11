@@ -951,6 +951,210 @@ class InvoiceNumberTests(APITestCase):
         self.assertEqual(self.client.get("/api/invoices/").data[0]["number"], newest.number)
 
 
+class InvoicePaymentTests(APITestCase):
+    """Money taken over the counter, in one go or in instalments."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = User.objects.create_user(
+            username="owner-payment", password="pw", role=User.Role.OWNER
+        )
+        cls.staff = User.objects.create_user(
+            username="staff-payment", password="pw", role=User.Role.STAFF
+        )
+        cls.customer = Customer.objects.create(name="Cafe Aroma", phone="9812233445")
+
+    def setUp(self):
+        # A ₹100 bill, so the arithmetic in each test reads at a glance.
+        self.invoice = Invoice.objects.create(
+            order=Order.objects.create(customer=self.customer),
+            number="INV-2026-0100",
+            total_amount="100.00",
+        )
+        self.url = f"/api/invoices/{self.invoice.id}/record-payment/"
+        self.client.force_authenticate(self.owner)
+
+    def pay(self, amount):
+        return self.client.post(self.url, {"amount": amount}, format="json")
+
+    def test_paying_in_full_settles_the_bill(self):
+        res = self.pay("100.00")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data["status"], Invoice.Status.PAID)
+        self.assertEqual(res.data["amount_due"], "0.00")
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.paid_amount, Decimal("100.00"))
+
+    def test_a_part_payment_leaves_the_bill_partial(self):
+        res = self.pay("40.00")
+        self.assertEqual(res.data["status"], Invoice.Status.PARTIAL)
+        self.assertEqual(res.data["amount_due"], "60.00")
+
+    def test_instalments_add_up_rather_than_replace(self):
+        """The second ₹40 is another ₹40, not a correction of the first."""
+        self.pay("40.00")
+        self.pay("40.00")
+        res = self.pay("20.00")
+        self.assertEqual(res.data["paid_amount"], "100.00")
+        self.assertEqual(res.data["status"], Invoice.Status.PAID)
+
+    def test_more_than_is_outstanding_is_refused(self):
+        self.pay("70.00")
+        res = self.pay("40.00")
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        # The refusal names what is actually left, so the counter can correct it.
+        self.assertIn("30.00", str(res.data["amount"]))
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.paid_amount, Decimal("70.00"))
+
+    def test_a_settled_bill_takes_no_further_payment(self):
+        self.pay("100.00")
+        res = self.pay("10.00")
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("settled", str(res.data["amount"]).lower())
+
+    def test_zero_and_negative_amounts_are_refused(self):
+        """Neither is a payment: one is a no-op, the other a refund."""
+        for amount in ["0", "-25.00"]:
+            with self.subTest(amount=amount):
+                res = self.pay(amount)
+                self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.status, Invoice.Status.UNPAID)
+
+    def test_staff_cannot_record_a_payment(self):
+        """Same owner gate as the rest of the financial surface."""
+        self.client.force_authenticate(self.staff)
+        res = self.pay("50.00")
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.paid_amount, Decimal("0"))
+
+    def test_the_list_reports_what_is_still_owed(self):
+        self.pay("25.50")
+        row = self.client.get("/api/invoices/").data[0]
+        self.assertEqual(row["amount_due"], "74.50")
+
+
+class OrderPaymentTests(APITestCase):
+    """Staff take payment at the counter, against the order they just handed over.
+
+    The Invoices page stays owner-only; this is the same money reached through
+    the one order it belongs to.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = User.objects.create_user(
+            username="owner-order-pay", password="pw", role=User.Role.OWNER
+        )
+        cls.staff = User.objects.create_user(
+            username="staff-order-pay", password="pw", role=User.Role.STAFF
+        )
+        cls.customer = Customer.objects.create(name="Cafe Aroma", phone="9812233445")
+
+    def setUp(self):
+        self.supplier = make_supplier()
+        self.product = Product.objects.create(
+            name="Toned Milk",
+            sku="MLK-2002",
+            category="Milk",
+            supplier=self.supplier,
+            unit=Product.Unit.LITRE,
+            selling_price="50.00",
+        )
+        StockBatch.objects.create(
+            product=self.product,
+            quantity=500,
+            purchase_price="42.00",
+            expiry_date=timezone.localdate() + timedelta(days=10),
+        )
+        self.client.force_authenticate(self.staff)
+
+    def place_order(self, quantity=4):
+        """A ₹200 order — four litres at ₹50."""
+        return self.client.post(
+            "/api/orders/",
+            {
+                "customer": self.customer.id,
+                "items": [{"product": self.product.id, "quantity": quantity}],
+            },
+            format="json",
+        ).data
+
+    def deliver(self, order):
+        for status_name in ["processed", "delivered"]:
+            res = self.client.patch(
+                f"/api/orders/{order['id']}/", {"status": status_name}, format="json"
+            )
+        return res.data
+
+    def pay(self, order_id, amount):
+        return self.client.post(
+            f"/api/orders/{order_id}/record-payment/", {"amount": amount}, format="json"
+        )
+
+    def test_staff_can_take_a_part_payment_at_the_counter(self):
+        order = self.deliver(self.place_order())
+        res = self.pay(order["id"], "80.00")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data["amount_paid"], "80.00")
+        self.assertEqual(res.data["amount_due"], "120.00")
+        self.assertEqual(res.data["payment_status"], Invoice.Status.PARTIAL)
+
+    def test_the_balance_settles_the_bill(self):
+        order = self.deliver(self.place_order())
+        self.pay(order["id"], "80.00")
+        res = self.pay(order["id"], "120.00")
+        self.assertEqual(res.data["payment_status"], Invoice.Status.PAID)
+        self.assertEqual(res.data["amount_due"], "0.00")
+
+    def test_delivering_reports_the_new_bill_straight_away(self):
+        """The PATCH response is what the Orders table re-renders from."""
+        delivered = self.deliver(self.place_order())
+        self.assertTrue(delivered["has_invoice"])
+        self.assertEqual(delivered["amount_due"], "200.00")
+        self.assertEqual(delivered["payment_status"], Invoice.Status.UNPAID)
+
+    def test_an_undelivered_order_has_nothing_to_pay_yet(self):
+        """Null, not zero: nothing owed and nothing billed are different answers."""
+        order = self.place_order()
+        row = self.client.get(f"/api/orders/{order['id']}/").data
+        self.assertFalse(row["has_invoice"])
+        for field in ["invoice_number", "amount_paid", "amount_due", "payment_status"]:
+            with self.subTest(field=field):
+                self.assertIsNone(row[field])
+
+    def test_paying_before_delivery_is_refused(self):
+        order = self.place_order()
+        res = self.pay(order["id"], "50.00")
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("no bill yet", str(res.data["detail"]))
+
+    def test_more_than_is_outstanding_is_refused(self):
+        order = self.deliver(self.place_order())
+        self.pay(order["id"], "150.00")
+        res = self.pay(order["id"], "80.00")
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("50.00", str(res.data["amount"]))
+
+    def test_the_owner_sees_the_same_payment_on_the_invoices_page(self):
+        """One bill, two ways in — not a second record of the same money."""
+        order = self.deliver(self.place_order())
+        self.pay(order["id"], "125.00")
+        self.client.force_authenticate(self.owner)
+        invoice = self.client.get("/api/invoices/").data[0]
+        self.assertEqual(invoice["order"], order["id"])
+        self.assertEqual(invoice["paid_amount"], "125.00")
+        self.assertEqual(invoice["amount_due"], "75.00")
+
+    def test_the_order_carries_the_bill_number_for_the_receipt(self):
+        order = self.deliver(self.place_order())
+        self.assertEqual(
+            order["invoice_number"], f"INV-{timezone.localdate().year}-0001"
+        )
+
+
 class CustomerTests(APITestCase):
     """Customers are added from the order form and removed only by the owner."""
 

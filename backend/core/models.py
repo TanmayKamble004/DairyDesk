@@ -381,6 +381,42 @@ class Invoice(models.Model):
     def __str__(self):
         return f"{self.number} for order #{self.order_id} ({self.status})"
 
+    @property
+    def amount_due(self):
+        """What the customer still owes on this bill.
+
+        Floored at zero: a bill can be settled but never over-settled, and a
+        negative "due" on the counter screen reads as a refund the shop does
+        not owe.
+        """
+        return max(self.total_amount - self.paid_amount, Decimal("0"))
+
+    def derive_status(self):
+        """The status the paid amount implies — never set by hand.
+
+        Payments arrive in any number of instalments, so the three states are a
+        function of what has been collected, not something a caller chooses:
+        nothing yet is unpaid, the full amount is paid, anything between is
+        partial.
+        """
+        if self.paid_amount <= 0:
+            return self.Status.UNPAID
+        if self.paid_amount >= self.total_amount:
+            return self.Status.PAID
+        return self.Status.PARTIAL
+
+    def record_payment(self, amount):
+        """Credit `amount` against this bill and re-derive its status.
+
+        Takes the money as given — the caller is responsible for refusing an
+        amount past `amount_due`, because it is the caller that knows how to
+        say so to the person at the counter.
+        """
+        self.paid_amount += amount
+        self.status = self.derive_status()
+        self.save(update_fields=["paid_amount", "status"])
+        return self
+
 
 # ---------------------------------------------------------------------------
 # Notification plumbing.

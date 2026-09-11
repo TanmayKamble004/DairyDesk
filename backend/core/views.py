@@ -26,6 +26,7 @@ from .models import (
 from .permissions import CanManageStaff, IsOwner, is_owner
 from .serializers import (
     CustomerSerializer,
+    InvoicePaymentSerializer,
     InvoiceSerializer,
     LoginSerializer,
     OrderSerializer,
@@ -460,13 +461,40 @@ class CustomerViewSet(
         customer.delete()
 
 
+def take_payment(invoice, data):
+    """Validate `data` as a payment and credit it against `invoice`.
+
+    Shared by the two counters that take money — the owner's Invoices page and
+    the staff-facing Orders page — so that both apply the same ceiling and the
+    same locking rather than one of them growing its own version.
+
+    The row is locked for the read-modify-write: two people collecting at once
+    would otherwise each read the same balance, each write their own total, and
+    one of the two payments would vanish. The second request waits, then
+    validates against the balance the first one left.
+    """
+    with transaction.atomic():
+        # Deliberately not a select_related queryset: FOR UPDATE over a join
+        # locks the order and the customer as well.
+        locked = Invoice.objects.select_for_update().get(pk=invoice.pk)
+        serializer = InvoicePaymentSerializer(data=data, context={"invoice": locked})
+        serializer.is_valid(raise_exception=True)
+        return locked.record_payment(serializer.validated_data["amount"])
+
+
 class OrderViewSet(
     mixins.ListModelMixin,
     mixins.CreateModelMixin,
     mixins.RetrieveModelMixin,
     viewsets.GenericViewSet,
 ):
-    queryset = Order.objects.select_related("customer").prefetch_related("items__product")
+    # `invoice` is joined in rather than looked up per row: every order in the
+    # list reports what has been paid against it, which without this is one
+    # query per order.
+    queryset = (
+        Order.objects.select_related("customer", "invoice")
+        .prefetch_related("items__product")
+    )
     serializer_class = OrderSerializer
 
     def partial_update(self, request, *args, **kwargs):
@@ -478,7 +506,36 @@ class OrderViewSet(
             serializer.save()
             if order.status == Order.Status.DELIVERED:
                 ensure_invoice(order)
-        return Response(OrderSerializer(order, context=self.get_serializer_context()).data)
+        return Response(
+            self.get_serializer(self.get_queryset().get(pk=order.pk)).data
+        )
+
+    @action(detail=True, methods=["post"], url_path="record-payment")
+    def record_payment(self, request, pk=None):
+        """Money taken at the counter, against the bill this order raised.
+
+        Open to staff, unlike the Invoices page: whoever hands over the goods is
+        who is handed the cash, and making them fetch the owner is how a payment
+        ends up unrecorded. It is the same restraint the disposal endpoint
+        takes — this writes one figure against one order, and exposes none of
+        the cost or margin data the owner gate protects.
+        """
+        order = self.get_object()
+        invoice = getattr(order, "invoice", None)
+        if invoice is None:
+            raise ValidationError(
+                {
+                    "detail": (
+                        f"Order #{order.id} has no bill yet. One is raised when "
+                        "the order is marked delivered."
+                    )
+                }
+            )
+        take_payment(invoice, request.data)
+        # Re-read rather than reuse `order`: its invoice was cached by
+        # get_object, and the serializer would report the balance as it stood
+        # before this payment.
+        return Response(self.get_serializer(self.get_queryset().get(pk=order.pk)).data)
 
 
 class InvoiceViewSet(viewsets.ReadOnlyModelViewSet):
@@ -487,6 +544,33 @@ class InvoiceViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Invoice.objects.select_related("order__customer")
     serializer_class = InvoiceSerializer
     permission_classes = [IsOwner]
+
+    @action(detail=True, methods=["post"], url_path="record-payment")
+    def record_payment(self, request, pk=None):
+        """Take a payment against this bill — in full or in instalments.
+
+        A POST rather than a PATCH of `paid_amount`: the caller sends what was
+        handed over, not what the running total should become. Two people
+        collecting at once would otherwise each read 0, each write their own
+        amount, and one of the two payments would vanish.
+
+        The row is locked for the read-modify-write so the same race cannot
+        happen inside the endpoint either — the second request waits, then
+        validates against the balance the first one left.
+        """
+        # get_object first, so a bill that does not exist — or a staff account
+        # reaching for one — is refused before anything is locked.
+        pk = self.get_object().pk
+        with transaction.atomic():
+            # Deliberately not the viewset's select_related queryset: FOR
+            # UPDATE over a join locks the order and the customer as well.
+            invoice = Invoice.objects.select_for_update().get(pk=pk)
+            serializer = InvoicePaymentSerializer(
+                data=request.data, context={"invoice": invoice}
+            )
+            serializer.is_valid(raise_exception=True)
+            invoice.record_payment(serializer.validated_data["amount"])
+        return Response(self.get_serializer(invoice).data)
 
 
 class InventoryView(APIView):
