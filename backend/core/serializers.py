@@ -532,6 +532,14 @@ class OrderSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source="customer.name", read_only=True)
     total = serializers.SerializerMethodField()
     has_invoice = serializers.SerializerMethodField()
+    # What has been collected against this order, so that whoever handed the
+    # goods over can take the money without the Invoices page — which stays
+    # owner-only. These say what is owed on this one sale and nothing else: no
+    # cost, no margin, no other customer's balance.
+    invoice_number = serializers.SerializerMethodField()
+    amount_paid = serializers.SerializerMethodField()
+    amount_due = serializers.SerializerMethodField()
+    payment_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
@@ -544,14 +552,49 @@ class OrderSerializer(serializers.ModelSerializer):
             "items",
             "total",
             "has_invoice",
+            "invoice_number",
+            "amount_paid",
+            "amount_due",
+            "payment_status",
         ]
         read_only_fields = ["status", "created_at"]
+
+    @staticmethod
+    def _invoice(order):
+        """The order's bill, or None before it is delivered.
+
+        A reverse one-to-one raises rather than returning None when it is
+        missing, and the exception subclasses AttributeError precisely so this
+        reads as an optional attribute. The viewset select_relateds it, so this
+        costs no query.
+        """
+        return getattr(order, "invoice", None)
 
     def get_total(self, order):
         return str(sum((item.line_total for item in order.items.all()), 0))
 
     def get_has_invoice(self, order):
-        return Invoice.objects.filter(order=order).exists()
+        return self._invoice(order) is not None
+
+    def get_invoice_number(self, order):
+        invoice = self._invoice(order)
+        return invoice.number if invoice else None
+
+    # All three stay null rather than falling back to zero before there is a
+    # bill: "nothing has been paid" and "there is nothing to pay yet" are
+    # different answers, and an unbilled order showing ₹0.00 owing invites
+    # somebody to collect against it.
+    def get_amount_paid(self, order):
+        invoice = self._invoice(order)
+        return str(invoice.paid_amount) if invoice else None
+
+    def get_amount_due(self, order):
+        invoice = self._invoice(order)
+        return str(invoice.amount_due) if invoice else None
+
+    def get_payment_status(self, order):
+        invoice = self._invoice(order)
+        return invoice.status if invoice else None
 
     def validate_items(self, items):
         if not items:
@@ -603,6 +646,12 @@ class OrderStatusSerializer(serializers.ModelSerializer):
 class InvoiceSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source="order.customer.name", read_only=True)
     order_status = serializers.CharField(source="order.status", read_only=True)
+    # Served rather than left to the client: total minus paid is the number the
+    # counter actually collects against, and every caller would otherwise
+    # subtract two decimal strings in floating point to get it.
+    amount_due = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
 
     class Meta:
         model = Invoice
@@ -617,5 +666,43 @@ class InvoiceSerializer(serializers.ModelSerializer):
             "created_at",
             "total_amount",
             "paid_amount",
+            "amount_due",
             "status",
         ]
+
+
+class InvoicePaymentSerializer(serializers.Serializer):
+    """POST /api/invoices/{id}/record-payment/ — money taken over the counter.
+
+    Only the amount: who paid and against which bill are already settled by the
+    URL, and the status follows from the running total rather than from
+    anything the caller asserts. A customer may settle a bill in as many
+    instalments as they like, so this credits rather than replaces.
+    """
+
+    amount = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        # A zero payment is a no-op that would still flip a bill to "partial",
+        # and a negative one is a refund — a different transaction entirely.
+        min_value=Decimal("0.01"),
+    )
+
+    def validate_amount(self, amount):
+        """Refuse more than is outstanding, naming what is actually left.
+
+        The invoice comes from the view via context; without one there is
+        nothing to check the amount against, which is a programming error.
+        """
+        invoice = self.context["invoice"]
+        due = invoice.amount_due
+        if due <= 0:
+            raise serializers.ValidationError(
+                f"{invoice.number} is already settled in full."
+            )
+        if amount > due:
+            raise serializers.ValidationError(
+                f"That is more than is outstanding. ₹{due} is left on "
+                f"{invoice.number}."
+            )
+        return amount
